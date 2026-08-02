@@ -11,6 +11,7 @@ import WorkstreamForm from './components/WorkstreamForm'
 import TaskDetail from './components/TaskDetail'
 import Toast from './components/Toast'
 import SetupNotice from './components/SetupNotice'
+import ThemeToggle from './components/ThemeToggle'
 import { isConfigured } from './lib/supabaseClient'
 import * as api from './lib/api'
 import { nextLineColor } from './lib/colors'
@@ -240,13 +241,16 @@ export default function App() {
               inboxCount={inbox.length}
             />
           </div>
-          <button
-            onClick={() => api.signOut()}
-            className="text-faint hover:text-ink p-1.5"
-            aria-label="Sign out"
-          >
-            <LogOut size={17} />
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={() => api.signOut()}
+              className="text-faint hover:text-ink p-1.5"
+              aria-label="Sign out"
+            >
+              <LogOut size={17} />
+            </button>
+          </div>
         </div>
       </header>
 

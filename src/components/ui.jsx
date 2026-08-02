@@ -1,11 +1,13 @@
 import { formatDue } from '../lib/dates'
 
+// Status dots reference theme variables rather than fixed hexes — the light
+// palette's red only reaches 2.98:1 on a dark panel.
 const STATUS_META = {
-  active: { label: 'Active', dot: '#1E8A6E' },
-  at_risk: { label: 'At risk', dot: '#B8790F' },
-  blocked: { label: 'Blocked', dot: '#C0392B' },
-  done: { label: 'Done', dot: '#6B7685' },
-  archived: { label: 'Archived', dot: '#9AA3B0' },
+  active: { label: 'Active', dot: 'rgb(var(--success))' },
+  at_risk: { label: 'At risk', dot: 'rgb(var(--warn))' },
+  blocked: { label: 'Blocked', dot: 'rgb(var(--danger))' },
+  done: { label: 'Done', dot: 'rgb(var(--muted))' },
+  archived: { label: 'Archived', dot: 'rgb(var(--faint))' },
 }
 
 export function StatusPill({ status }) {
@@ -27,9 +29,9 @@ export function DueBadge({ date, className = '' }) {
   const due = formatDue(date)
   if (!due) return null
   const toneClasses = {
-    overdue: 'text-danger bg-red-50 border-red-100',
-    due: 'text-danger bg-red-50 border-red-100',
-    soon: 'text-warn bg-amber-50 border-amber-100',
+    overdue: 'text-danger bg-dangerSoft border-dangerBorder',
+    due: 'text-danger bg-dangerSoft border-dangerBorder',
+    soon: 'text-warn bg-warnSoft border-warnBorder',
     later: 'text-muted bg-transparent border-hairline',
   }
   return (
@@ -44,7 +46,7 @@ export function DueBadge({ date, className = '' }) {
 export function IconButton({ children, className = '', ...props }) {
   return (
     <button
-      className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-black/5 transition-colors ${className}`}
+      className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-ink/5 transition-colors ${className}`}
       {...props}
     >
       {children}

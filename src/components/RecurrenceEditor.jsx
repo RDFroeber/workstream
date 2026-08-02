@@ -56,7 +56,7 @@ export default function RecurrenceEditor({ task, onChange }) {
         </button>
       </div>
 
-      <div className="border border-hairlineStrong rounded-lg p-3 bg-white space-y-3">
+      <div className="border border-hairlineStrong rounded-lg p-3 bg-panel space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted">Every</span>
           <input
@@ -78,7 +78,7 @@ export default function RecurrenceEditor({ task, onChange }) {
                 recurrence_days: e.target.value === 'week' ? task.recurrence_days : null,
               })
             }
-            className="flex-1 rounded-lg border border-hairlineStrong px-2 py-1.5 text-sm text-ink bg-white outline-none focus:border-accent"
+            className="flex-1 rounded-lg border border-hairlineStrong px-2 py-1.5 text-sm text-ink bg-panel outline-none focus:border-accent"
           >
             {UNITS.map((u) => (
               <option key={u.value} value={u.value}>
@@ -102,7 +102,7 @@ export default function RecurrenceEditor({ task, onChange }) {
                     aria-pressed={on}
                     className={`w-8 h-8 rounded-full text-xs font-medium transition-colors ${
                       on
-                        ? 'bg-accent text-white'
+                        ? 'bg-accent text-panel'
                         : 'bg-transparent text-muted border border-hairlineStrong hover:border-ink'
                     }`}
                   >

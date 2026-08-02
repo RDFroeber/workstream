@@ -4,6 +4,7 @@ import { buildWorkstreamTree } from '../lib/api'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
+import { useLineColor } from '../lib/theme'
 
 export default function WorkstreamView({
   workstream,
@@ -18,6 +19,7 @@ export default function WorkstreamView({
   onToggleStatus,
   onReorderTasks,
 }) {
+  const lineColor = useLineColor()
   const [adding, setAdding] = useState(null) // null | 'standalone' | 'sequence'
   const [draftTitle, setDraftTitle] = useState('')
 
@@ -57,7 +59,10 @@ export default function WorkstreamView({
 
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ background: workstream.color }} />
+          <span
+            className="w-3 h-3 rounded-full shrink-0"
+            style={{ background: lineColor(workstream.color) }}
+          />
           <h1 className="font-display font-semibold text-2xl text-ink tracking-tight truncate">
             {workstream.name}
           </h1>
@@ -80,7 +85,7 @@ export default function WorkstreamView({
             {({ handleProps, isDragging }) => (
               <TaskRow
                 item={item}
-                color={workstream.color}
+                color={lineColor(workstream.color)}
                 dependencies={dependencies}
                 tasksById={tasksById}
                 workstreamsById={workstreamsById}
@@ -111,7 +116,7 @@ export default function WorkstreamView({
           />
           <button
             type="submit"
-            className="text-xs font-medium bg-ink text-white rounded-md px-2.5 py-1.5"
+            className="text-xs font-medium bg-ink text-panel rounded-md px-2.5 py-1.5"
           >
             Add
           </button>
@@ -143,7 +148,7 @@ export default function WorkstreamView({
               <TaskRow
                 key={item.id}
                 item={item}
-                color={workstream.color}
+                color={lineColor(workstream.color)}
                 dependencies={dependencies}
                 tasksById={tasksById}
                 workstreamsById={workstreamsById}

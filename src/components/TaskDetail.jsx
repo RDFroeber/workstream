@@ -15,6 +15,7 @@ import { DueBadge } from './ui'
 import RecurrenceEditor from './RecurrenceEditor'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
+import { useLineColor } from '../lib/theme'
 
 export default function TaskDetail({
   task,
@@ -34,6 +35,7 @@ export default function TaskDetail({
   onRemoveDependency,
   onCompleteCycle,
 }) {
+  const lineColor = useLineColor()
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes || '')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -99,7 +101,7 @@ export default function TaskDetail({
               {task.status === 'done' ? (
                 <CheckCircle2 size={20} className="text-accent" />
               ) : (
-                <Circle size={20} style={{ color: workstream?.color }} />
+                <Circle size={20} style={{ color: lineColor(workstream?.color) }} />
               )}
             </button>
           )}
@@ -118,7 +120,10 @@ export default function TaskDetail({
       <div className="flex items-center gap-2 flex-wrap text-xs text-muted mb-4">
         {workstream && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ background: workstream.color }} />
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: lineColor(workstream.color) }}
+            />
             {workstream.name}
           </span>
         )}
@@ -134,7 +139,7 @@ export default function TaskDetail({
       {isSequence && isRecurring(task) && steps.length > 0 && allStepsDone && (
         <button
           onClick={onCompleteCycle}
-          className="w-full mb-4 rounded-lg bg-accent text-white text-sm font-medium py-2.5 inline-flex items-center justify-center gap-1.5 hover:bg-[#1a3440] transition-colors"
+          className="w-full mb-4 rounded-lg bg-accent text-panel text-sm font-medium py-2.5 inline-flex items-center justify-center gap-1.5 hover:bg-accentHover transition-colors"
         >
           <RotateCcw size={15} /> Finish this cycle and reset the steps
         </button>
@@ -149,7 +154,7 @@ export default function TaskDetail({
             type="date"
             value={task.due_date || ''}
             onChange={(e) => onUpdate(task.id, { due_date: e.target.value || null })}
-            className="w-full rounded-lg border border-hairlineStrong px-2.5 py-1.5 text-sm text-ink bg-white focus:border-accent outline-none"
+            className="w-full rounded-lg border border-hairlineStrong px-2.5 py-1.5 text-sm text-ink bg-panel focus:border-accent outline-none"
           />
         </div>
       </div>
@@ -162,7 +167,7 @@ export default function TaskDetail({
           onBlur={commitNotes}
           rows={3}
           placeholder="Any context worth remembering…"
-          className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-white focus:border-accent outline-none resize-none"
+          className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-panel focus:border-accent outline-none resize-none"
         />
       </div>
 
@@ -231,7 +236,7 @@ export default function TaskDetail({
             />
             <button
               type="submit"
-              className="text-xs font-medium bg-ink text-white rounded-md px-2.5 py-1.5 inline-flex items-center gap-1"
+              className="text-xs font-medium bg-ink text-panel rounded-md px-2.5 py-1.5 inline-flex items-center gap-1"
             >
               <Plus size={13} /> Add
             </button>
@@ -252,7 +257,7 @@ export default function TaskDetail({
             return (
               <div
                 key={d.id}
-                className="flex items-center gap-2 text-sm bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5"
+                className="flex items-center gap-2 text-sm bg-dangerSoft border border-dangerBorder rounded-lg px-2.5 py-1.5"
               >
                 <Link2 size={13} className="text-danger shrink-0" />
                 <span className="flex-1 min-w-0 truncate text-ink">
@@ -314,7 +319,7 @@ export default function TaskDetail({
             </span>
             <button
               onClick={() => onDelete(task.id)}
-              className="text-xs font-medium text-white bg-danger rounded-lg px-3 py-1.5"
+              className="text-xs font-medium text-panel bg-danger rounded-lg px-3 py-1.5"
             >
               Delete
             </button>
@@ -342,7 +347,7 @@ function DependencyPicker({ candidates, workstreamsById, onPick, onCancel }) {
   )
 
   return (
-    <div className="border border-hairlineStrong rounded-lg p-2 bg-white">
+    <div className="border border-hairlineStrong rounded-lg p-2 bg-panel">
       <input
         autoFocus
         value={query}
@@ -359,7 +364,11 @@ function DependencyPicker({ candidates, workstreamsById, onPick, onCancel }) {
           >
             <span
               className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ background: workstreamsById[t.workstream_id]?.color || '#ccc' }}
+              style={{
+                background: workstreamsById[t.workstream_id]
+                  ? lineColor(workstreamsById[t.workstream_id].color)
+                  : 'rgb(var(--hairline-strong))',
+              }}
             />
             <span className="truncate">{t.title}</span>
           </button>

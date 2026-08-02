@@ -21,7 +21,7 @@ export default function Toast({ message, onDone }) {
       aria-live="polite"
       className="fixed top-16 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none"
     >
-      <div className="bg-ink text-white text-sm rounded-full px-4 py-2 shadow-raised inline-flex items-center gap-2">
+      <div className="bg-ink text-panel text-sm rounded-full px-4 py-2 shadow-raised inline-flex items-center gap-2">
         <Repeat size={14} />
         {message}
       </div>

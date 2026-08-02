@@ -27,7 +27,7 @@ export default function SetupNotice() {
               file locally, or in your host's environment variables
             </li>
           </ol>
-          <pre className="font-mono text-[11px] bg-ink text-white rounded-lg p-3 overflow-x-auto leading-relaxed">
+          <pre className="font-mono text-[11px] bg-ink text-panel rounded-lg p-3 overflow-x-auto leading-relaxed">
 {`VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGci...`}
           </pre>

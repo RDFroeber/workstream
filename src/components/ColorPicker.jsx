@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, Eye } from 'lucide-react'
 import { PALETTE, FAMILIES, colorName } from '../lib/colors'
+import { useLineColor } from '../lib/theme'
 
 /**
  * Swatch grid for choosing a line color.
@@ -11,6 +12,9 @@ import { PALETTE, FAMILIES, colorName } from '../lib/colors'
  */
 export default function ColorPicker({ value, onChange, usedColors = [] }) {
   const [safeOnly, setSafeOnly] = useState(false)
+  // Swatches preview the variant for the current theme, so what you pick is
+  // what you'll see on the dashboard.
+  const lineColor = useLineColor()
   const used = new Set(usedColors.filter((c) => c !== value))
   const colors = safeOnly ? PALETTE.filter((c) => c.safe) : PALETTE
 
@@ -43,7 +47,7 @@ export default function ColorPicker({ value, onChange, usedColors = [] }) {
         </button>
       </div>
 
-      <div className="border border-hairlineStrong rounded-lg p-2.5 bg-white">
+      <div className="border border-hairlineStrong rounded-lg p-2.5 bg-panel">
         <div className="space-y-2">
           {isLegacy && !safeOnly && (
             <div className="flex items-center gap-2">
@@ -57,9 +61,13 @@ export default function ColorPicker({ value, onChange, usedColors = [] }) {
                 aria-pressed
                 title="This line's existing color"
                 className="relative w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: value, outline: `2px solid ${value}`, outlineOffset: 2 }}
+                style={{
+                  background: lineColor(value),
+                  outline: `2px solid ${lineColor(value)}`,
+                  outlineOffset: 2,
+                }}
               >
-                <Check size={14} className="text-white" strokeWidth={3} />
+                <Check size={14} className="text-panel" strokeWidth={3} />
               </button>
             </div>
           )}
@@ -82,14 +90,14 @@ export default function ColorPicker({ value, onChange, usedColors = [] }) {
                       aria-pressed={selected}
                       className="relative w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
                       style={{
-                        background: c.hex,
-                        outline: selected ? `2px solid ${c.hex}` : 'none',
+                        background: lineColor(c.hex),
+                        outline: selected ? `2px solid ${lineColor(c.hex)}` : 'none',
                         outlineOffset: 2,
                       }}
                     >
-                      {selected && <Check size={14} className="text-white" strokeWidth={3} />}
+                      {selected && <Check size={14} className="text-panel" strokeWidth={3} />}
                       {!selected && isUsed && (
-                        <span className="absolute inset-0 rounded-full border-2 border-white/90" />
+                        <span className="absolute inset-0 rounded-full border-2 border-panel" />
                       )}
                     </button>
                   )

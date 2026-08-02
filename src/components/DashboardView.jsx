@@ -3,6 +3,7 @@ import { summarizeWorkstream } from '../lib/api'
 import { isRecurring } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
+import { useLineColor } from '../lib/theme'
 
 export default function DashboardView({
   workstreams,
@@ -13,6 +14,7 @@ export default function DashboardView({
   onNewWorkstream,
   onReorder,
 }) {
+  const lineColor = useLineColor()
   const attentionCount = workstreams.filter((w) => w.status === 'at_risk' || w.status === 'blocked').length
 
   return (
@@ -29,7 +31,7 @@ export default function DashboardView({
         </div>
         <button
           onClick={onNewWorkstream}
-          className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-white rounded-lg px-3 py-2 hover:bg-black transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity"
         >
           <Plus size={16} /> New line
         </button>
@@ -79,7 +81,7 @@ export default function DashboardView({
                     <DragHandle handleProps={handleProps} label={`Reorder ${ws.name}`} />
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ background: ws.color }}
+                      style={{ background: lineColor(ws.color) }}
                     />
                     <span className="font-display font-semibold text-[15px] text-ink truncate">
                       {ws.name}
@@ -97,15 +99,15 @@ export default function DashboardView({
                 {/* the line: a filled track for finite work, a dashed one for
                     lines that are pure upkeep and have nothing to finish */}
                 {summary.hasFiniteWork ? (
-                  <div className="relative h-1.5 rounded-full mb-2" style={{ background: '#E2E5EA' }}>
+                  <div className="relative h-1.5 rounded-full mb-2 bg-hairline">
                     <div
                       className="absolute inset-y-0 left-0 rounded-full transition-all"
-                      style={{ width: `${Math.max(progress * 100, 2)}%`, background: ws.color }}
+                      style={{ width: `${Math.max(progress * 100, 2)}%`, background: lineColor(ws.color) }}
                     />
                     <div
-                      className="absolute rounded-full bg-white border-2"
+                      className="absolute rounded-full bg-panel border-2"
                       style={{
-                        borderColor: ws.color,
+                        borderColor: lineColor(ws.color),
                         width: 12,
                         height: 12,
                         top: -4.5,
@@ -117,7 +119,7 @@ export default function DashboardView({
                   <div
                     className="h-1.5 mb-2 rounded-full"
                     style={{
-                      backgroundImage: `repeating-linear-gradient(90deg, ${ws.color}55 0 6px, transparent 6px 12px)`,
+                      backgroundImage: `repeating-linear-gradient(90deg, ${lineColor(ws.color)}55 0 6px, transparent 6px 12px)`,
                     }}
                   />
                 )}
@@ -179,7 +181,7 @@ function EmptyState({ onNewWorkstream }) {
       </p>
       <button
         onClick={onNewWorkstream}
-        className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-white rounded-lg px-4 py-2 hover:bg-black transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-4 py-2 hover:opacity-90 transition-opacity"
       >
         <Plus size={16} /> Add your first line
       </button>

@@ -85,6 +85,45 @@ The picker also puts a white ring on any color another line is already using,
 since two workstreams in near-identical colors is what actually makes the
 dashboard hard to scan.
 
+## Dark mode
+
+Three settings in the header: light, dark, or follow the OS (the default). The
+choice is stored in `localStorage` and applied by a small inline script in
+`index.html` before React mounts, so a dark-mode user never gets a white flash
+on load.
+
+Every colour in the UI is a CSS variable declared in `src/index.css`, as
+space-separated RGB channels so Tailwind's alpha modifiers (`bg-ink/30`) keep
+working across both themes. A test asserts no component contains a literal hex
+or a light-only Tailwind class, since one stray `bg-white` is a white block in
+dark mode.
+
+The line palette needed real work rather than a filter. Twelve of the 24 light
+colours fall below 3:1 contrast on a dark panel — Graphite manages 1.59:1 — so
+half the palette would have effectively disappeared. Each colour therefore
+carries a `dark` variant, solved under the same constraints as the light set:
+at least 3.5:1 on the dark panel, every pair still separated, the eight-colour
+safe subset still safe under all three dichromacies, and hue held within 22
+degrees so "Navy" stays a navy rather than optimising itself into lavender. The
+database always stores the light hex; the variant is swapped in at render time.
+
+## Installing it on your phone
+
+It's a proper PWA, so "Add to Home Screen" gives you an icon called **Lines**
+that opens fullscreen with no browser chrome.
+
+- **iOS**: Safari → Share → Add to Home Screen. Safari ignores the web manifest
+  for both the icon and the name, so those come from `apple-touch-icon.png` and
+  the `apple-mobile-web-app-title` meta tag instead — both are set.
+- **Android**: Chrome will offer an install prompt, or use the menu → Install
+  app. This uses `manifest.webmanifest`, including a maskable icon so Android
+  can crop it to whatever shape the launcher uses without clipping the artwork.
+
+The icons are generated, not hand-drawn — run `python3 scripts/make-icons.py`
+(needs `cairosvg`) to regenerate everything from source after editing the mark.
+The 16px favicon uses a simplified version with no station node and wider gaps,
+because at that size the full mark turns to mush.
+
 ## Reordering
 
 Everything orderable is drag-and-drop: workstreams on the dashboard, tasks within a
@@ -188,7 +227,7 @@ iOS and Android without an app store.
 npm test
 ```
 
-57 tests, and the ones worth knowing about:
+92 tests, and the ones worth knowing about:
 
 - **Recurrence date math** — month-end clamping (Jan 31 + 1 month is Feb 28, not Mar 3),
   the schedule-vs-completion anchor distinction, biweekly rules with specific weekdays, and
@@ -198,6 +237,11 @@ npm test
   is invalid HTML that browsers handle unpredictably. Adding drag handles to clickable cards
   is exactly the change that introduces this.
 - **Progress accounting** — that recurring upkeep stays out of the completion percentage.
+- **Dark palette** — that every dark variant is readable on the dark panel, doesn't
+  glare, stays separable, and keeps its hue. Plus a guard that no component contains a
+  hardcoded colour.
+- **PWA assets** — that the icons exist, the manifest names the app Lines, paths are
+  relative so it works on a subpath host, and the iOS-specific tags are present.
 - **Palette guarantees** — contrast, lightness consistency, pairwise separation, and
   that the colorblind-safe subset really is safe under all three dichromacies. The math
   lives in `tests/colorScience.js` (CIEDE2000 + Viénot dichromat simulation), kept out of

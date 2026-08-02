@@ -18,13 +18,13 @@ export default function Nav({ active, onChange, inboxCount }) {
               key={t.id}
               onClick={() => onChange(t.id)}
               className={`relative flex-1 sm:flex-none flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-2.5 sm:py-1.5 sm:px-3.5 sm:rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                isActive ? 'text-ink sm:bg-ink sm:text-white' : 'text-faint hover:text-muted'
+                isActive ? 'text-ink sm:bg-ink sm:text-panel' : 'text-faint hover:text-muted'
               }`}
             >
               <Icon size={18} strokeWidth={isActive ? 2.3 : 2} />
               {t.label}
               {t.id === 'inbox' && inboxCount > 0 && (
-                <span className="absolute -top-0.5 right-[28%] sm:static sm:ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-[10px] flex items-center justify-center font-mono">
+                <span className="absolute -top-0.5 right-[28%] sm:static sm:ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger text-panel text-[10px] flex items-center justify-center font-mono">
                   {inboxCount}
                 </span>
               )}

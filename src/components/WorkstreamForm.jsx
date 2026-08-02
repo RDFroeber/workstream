@@ -43,7 +43,7 @@ export default function WorkstreamForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Website redesign"
-            className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-white focus:border-accent outline-none"
+            className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-panel focus:border-accent outline-none"
           />
         </div>
 
@@ -55,7 +55,7 @@ export default function WorkstreamForm({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-white focus:border-accent outline-none"
+              className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-panel focus:border-accent outline-none"
             >
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -69,7 +69,7 @@ export default function WorkstreamForm({
         <div className="flex items-center gap-2 pt-1">
           <button
             type="submit"
-            className="flex-1 rounded-lg bg-accent text-white text-sm font-medium py-2.5 hover:bg-[#1a3440] transition-colors"
+            className="flex-1 rounded-lg bg-accent text-panel text-sm font-medium py-2.5 hover:bg-accentHover transition-colors"
           >
             {initial ? 'Save changes' : 'Create line'}
           </button>
@@ -85,7 +85,7 @@ export default function WorkstreamForm({
                 <button
                   type="button"
                   onClick={() => onDelete(initial.id)}
-                  className="text-xs font-medium text-white bg-danger rounded-lg px-3 py-1.5"
+                  className="text-xs font-medium text-panel bg-danger rounded-lg px-3 py-1.5"
                 >
                   Delete
                 </button>

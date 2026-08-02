@@ -1,32 +1,39 @@
 /** @type {import('tailwindcss').Config} */
+const withAlpha = (v) => `rgb(var(${v}) / <alpha-value>)`
+
 export default {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        paper: '#F7F8FA',
-        panel: '#FFFFFF',
-        ink: '#1B2430',
-        muted: '#6B7685',
-        faint: '#9AA3B0',
-        hairline: '#E2E5EA',
-        hairlineStrong: '#CBD1D9',
-        accent: '#22404F',
-        accentSoft: '#E8EEF0',
-        danger: '#C0392B',
-        warn: '#B8790F',
+        paper: withAlpha('--paper'),
+        panel: withAlpha('--panel'),
+        ink: withAlpha('--ink'),
+        muted: withAlpha('--muted'),
+        faint: withAlpha('--faint'),
+        hairline: withAlpha('--hairline'),
+        hairlineStrong: withAlpha('--hairline-strong'),
+        accent: withAlpha('--accent'),
+        accentHover: withAlpha('--accent-hover'),
+        accentSoft: withAlpha('--accent-soft'),
+        danger: withAlpha('--danger'),
+        dangerSoft: withAlpha('--danger-soft'),
+        dangerBorder: withAlpha('--danger-border'),
+        success: withAlpha('--success'),
+        warn: withAlpha('--warn'),
+        warnSoft: withAlpha('--warn-soft'),
+        warnBorder: withAlpha('--warn-border'),
       },
       fontFamily: {
         display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
         body: ['"Inter"', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
-      borderRadius: {
-        card: '10px',
-      },
+      borderRadius: { card: '10px' },
       boxShadow: {
-        card: '0 1px 2px rgba(27,36,48,0.04), 0 1px 1px rgba(27,36,48,0.03)',
-        raised: '0 4px 16px rgba(27,36,48,0.10)',
+        card: 'var(--shadow-card)',
+        raised: 'var(--shadow-raised)',
       },
     },
   },

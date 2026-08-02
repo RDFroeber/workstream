@@ -34,11 +34,11 @@ export default function QuickCapture({ onCapture }) {
                 if (!text.trim()) setOpen(false)
               }}
               placeholder="Capture anything — sort it later…"
-              className="flex-1 bg-transparent text-white placeholder:text-white/50 text-sm outline-none min-w-0"
+              className="flex-1 bg-transparent text-panel placeholder:text-panel/50 text-sm outline-none min-w-0"
             />
             <button
               type="submit"
-              className="shrink-0 w-9 h-9 rounded-full bg-white text-ink flex items-center justify-center"
+              className="shrink-0 w-9 h-9 rounded-full bg-panel text-ink flex items-center justify-center"
               aria-label="Save"
             >
               <ArrowUp size={17} />
@@ -47,7 +47,7 @@ export default function QuickCapture({ onCapture }) {
         ) : (
           <button
             onClick={() => setOpen(true)}
-            className="mx-auto flex items-center gap-1.5 bg-ink text-white text-sm font-medium rounded-full shadow-raised px-5 py-3 hover:bg-black transition-colors"
+            className="mx-auto flex items-center gap-1.5 bg-ink text-panel text-sm font-medium rounded-full shadow-raised px-5 py-3 hover:opacity-90 transition-opacity"
           >
             <Plus size={16} /> Quick capture
           </button>

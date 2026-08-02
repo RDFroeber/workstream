@@ -3,6 +3,7 @@ import { summarizeWorkstream } from '../lib/api'
 import { isRecurring } from '../lib/recurrence'
 import { todayISO } from '../lib/dates'
 import { DueBadge } from './ui'
+import { useLineColor } from '../lib/theme'
 
 export default function TodayView({ workstreams, tasksByWorkstream, onOpenTask, onToggleStatus }) {
   const today = todayISO()
@@ -84,6 +85,7 @@ function Section({ title, tone, children }) {
 }
 
 function Row({ item, ws, onOpen, onToggleStatus }) {
+  const lineColor = useLineColor()
   const isStep = item.item_type === 'step'
   return (
     <div
@@ -97,11 +99,14 @@ function Row({ item, ws, onOpen, onToggleStatus }) {
         }}
         className="mt-0.5 shrink-0"
       >
-        <Circle size={18} style={{ color: ws.color }} />
+        <Circle size={18} style={{ color: lineColor(ws.color) }} />
       </button>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: ws.color }} />
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: lineColor(ws.color) }}
+          />
           <span className="text-xs text-muted">{ws.name}</span>
           {isStep && <ListOrdered size={11} className="text-faint" />}
           {isRecurring(item) && <Repeat size={11} className="text-faint" />}

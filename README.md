@@ -42,6 +42,23 @@ sign-in: guideline 4.8 only triggers on a third-party or social login, and Sign
 in with Apple is the option that *satisfies* it rather than one that creates the
 obligation. See `docs/app-store.md`.
 
+## Search
+
+⌘K or Ctrl-K, or the magnifier in the header. Searches task titles, notes and
+line names across everything, including steps inside sequences and completed
+work.
+
+Matching is substring-and-prefix, not fuzzy, on purpose. Fuzzy matching demos
+well and wears badly: it returns results you can't explain, and past a couple of
+hundred tasks the "why is that first?" moment costs more than the occasional
+typo it rescues. Ranking is exact title > title prefix > start of any word >
+anywhere in the title > notes, with completed work pushed below open work and
+ties broken by due date so a repeated search doesn't reshuffle.
+
+Queries are matched with accents stripped, so `cafe` finds `café` — typing the
+unaccented form is the common case and failing to match it reads as the search
+being broken.
+
 ## Getting your data out
 
 Settings offers two downloads:
@@ -439,7 +456,7 @@ npm test          # run once
 npm run coverage  # with a coverage report
 ```
 
-579 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
+617 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
 that can silently lose data lives — is at 92%, and the API layer at 99%.
 
 What deliberately isn't covered, and why:

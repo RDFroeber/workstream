@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { LogOut, Waypoints, Settings } from 'lucide-react'
+import { LogOut, Waypoints, Settings, Search } from 'lucide-react'
 import Auth from './components/Auth'
 import Nav from './components/Nav'
 import QuickCapture from './components/QuickCapture'
@@ -12,6 +12,7 @@ import TaskDetail from './components/TaskDetail'
 import Toast from './components/Toast'
 import SetupNotice from './components/SetupNotice'
 import NewPassword from './components/NewPassword'
+import SearchDialog from './components/SearchDialog'
 import ThemeToggle from './components/ThemeToggle'
 import OfflineBanner from './components/OfflineBanner'
 import SettingsPanel from './components/SettingsPanel'
@@ -47,6 +48,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [recovering, setRecovering] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
   // Desktop layout choice. Persisted, but only ever applied at md and above —
   // the stacked list is the right answer on a phone regardless of what's saved.
   const [layout, setLayoutState] = useState(() => {
@@ -274,6 +276,18 @@ export default function App() {
     if (session && offline.isOnline() && offline.outboxCount() > 0) flush()
   }, [session, flush])
 
+  useEffect(() => {
+    if (!session) return
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowSearch(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [session])
+
   // --- reminders --------------------------------------------------------------
   // The check reads current data through a ref rather than through the effect's
   // dependencies. Depending on the data directly tore down and rebuilt the
@@ -476,6 +490,14 @@ export default function App() {
               tabs and justify-between shifted the centred nav with it. It now
               lives on the dashboard, next to what it controls. */}
           <div className="flex items-center gap-2 justify-self-end">
+            <button
+              onClick={() => setShowSearch(true)}
+              className="text-faint hover:text-ink p-1.5"
+              aria-label="Search"
+              title="Search (⌘K)"
+            >
+              <Search size={17} />
+            </button>
             <ThemeToggle />
             <button
               onClick={() => setShowSettings(true)}
@@ -661,6 +683,23 @@ export default function App() {
           taskLinks={taskLinks}
           onAddLink={handleAddLink}
           onRemoveLink={handleRemoveLink}
+        />
+      )}
+
+      {showSearch && (
+        <SearchDialog
+          data={{ workstreams, tasks, dependencies, taskLinks, inbox }}
+          onOpenTask={(task) => {
+            // Land on the task's line as well, so closing the panel leaves you
+            // somewhere sensible rather than back where you started.
+            setActiveWorkstreamId(task.workstream_id)
+            setOpenTaskId(task.id)
+          }}
+          onOpenLine={(id) => {
+            setView('dashboard')
+            setActiveWorkstreamId(id)
+          }}
+          onClose={() => setShowSearch(false)}
         />
       )}
 

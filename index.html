@@ -22,8 +22,11 @@
 
     <!-- Android / Chrome -->
     <link rel="manifest" href="./manifest.webmanifest" />
-    <meta name="theme-color" content="#F7F8FA" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#14181D" media="(prefers-color-scheme: dark)" />
+    <!-- One tag with no media query, so the in-app theme toggle can drive it.
+         Two media-scoped tags follow the OS instead, which meant choosing Dark
+         in the app left the browser and iOS status bar light. The boot script
+         below sets it before first paint. -->
+    <meta name="theme-color" content="#F7F8FA" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -41,13 +44,15 @@
             stored === 'dark' ||
             (stored === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
           document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#14181D' : '#F7F8FA')
         } catch (e) {
           document.documentElement.dataset.theme = 'light'
         }
       })()
     </script>
-    <script type="module" crossorigin src="./assets/index-Bb6UjLeB.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DI0xfVBG.css">
+    <script type="module" crossorigin src="./assets/index-BgW1AuaB.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DL04Wd0R.css">
   </head>
   <body>
     <div id="root"></div>

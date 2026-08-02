@@ -27,7 +27,19 @@ export const PALETTE = [
   { id: 'rust', name: 'Rust', hex: '#A34E1F', family: 'Red', safe: true, dark: '#AB632F' },
   // orange / amber
   { id: 'orange', name: 'Orange', hex: '#D2691E', family: 'Orange', safe: true, dark: '#E55A0D' },
-  { id: 'amber', name: 'Amber', hex: '#B8790F', family: 'Orange', dark: '#BC7628' },
+  // Deliberate exception. Amber is the palette's only true yellow, and a true
+  // yellow cannot clear 3:1 against white — pure yellow manages 1.23:1. This
+  // one sits at 2.61:1 and L*66, breaking both the contrast floor and the
+  // lightness band on purpose. `lowContrast` marks it so the invariant tests
+  // can allow exactly this and nothing else, and so the UI can compensate.
+  {
+    id: 'amber',
+    name: 'Amber',
+    hex: '#E08E0B',
+    family: 'Orange',
+    dark: '#E08E0B',
+    lowContrast: true,
+  },
   { id: 'gold', name: 'Gold', hex: '#9A8203', family: 'Orange', dark: '#A17F1E' },
   // green
   { id: 'olive', name: 'Olive', hex: '#5C6B2E', family: 'Green', safe: true, dark: '#777D45' },
@@ -91,6 +103,11 @@ export function nextLineColor(existingColors = []) {
 
 export function colorName(hex) {
   return PALETTE_BY_HEX[hex]?.name || 'Custom'
+}
+
+/** Colors that knowingly break the contrast floor, and need a helping outline. */
+export function needsOutline(hex) {
+  return Boolean(PALETTE_BY_HEX[hex]?.lowContrast)
 }
 
 /**

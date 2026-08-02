@@ -83,8 +83,9 @@ describe('dark palette', () => {
   })
 
   it('still works in light mode', () => {
-    PALETTE.forEach((c) => {
-      expect(contrast(c.hex, LIGHT_PANEL)).toBeGreaterThanOrEqual(3.0)
+    // Flagged exceptions are covered by their own test in colors.test.js.
+    PALETTE.filter((c) => !c.lowContrast).forEach((c) => {
+      expect(contrast(c.hex, LIGHT_PANEL), c.name).toBeGreaterThanOrEqual(3.0)
     })
   })
 })
@@ -97,9 +98,10 @@ describe('themeColor', () => {
     PALETTE.forEach((c) => expect(themeColor(c.hex, true)).toBe(c.dark))
   })
   it('leaves an unrecognised legacy color alone', () => {
-    // A line saved before the palette changed still has to render.
-    expect(themeColor('#E08E0B', true)).toBe('#E08E0B')
-    expect(themeColor('#E08E0B', false)).toBe('#E08E0B')
+    // #1E8A6E is the retired original Green. A line saved before the palette
+    // changed still has to render.
+    expect(themeColor('#1E8A6E', true)).toBe('#1E8A6E')
+    expect(themeColor('#1E8A6E', false)).toBe('#1E8A6E')
   })
 })
 

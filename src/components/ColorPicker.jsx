@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check, Eye } from 'lucide-react'
 import { PALETTE, FAMILIES, colorName } from '../lib/colors'
 import { useLineColor } from '../lib/theme'
+import { lineFill } from '../lib/lineStyle'
 
 /**
  * Swatch grid for choosing a line color.
@@ -86,18 +87,24 @@ export default function ColorPicker({ value, onChange, usedColors = [] }) {
                       key={c.id}
                       onClick={() => onChange(c.hex)}
                       title={isUsed ? `${c.name} — already used by another line` : c.name}
+                      data-inuse={isUsed || undefined}
                       aria-label={`${c.name}${isUsed ? ', already in use' : ''}`}
                       aria-pressed={selected}
                       className="relative w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
                       style={{
-                        background: lineColor(c.hex),
+                        ...lineFill(lineColor(c.hex), c.hex),
                         outline: selected ? `2px solid ${lineColor(c.hex)}` : 'none',
                         outlineOffset: 2,
                       }}
                     >
                       {selected && <Check size={14} className="text-panel" strokeWidth={3} />}
+                      {/* Used colors render as a donut. An outer ring was
+                          invisible — a panel-coloured edge against a
+                          panel-coloured background just looks like a slightly
+                          smaller dot. A hole punched through the middle reads
+                          instantly, and doesn't depend on colour to do it. */}
                       {!selected && isUsed && (
-                        <span className="absolute inset-0 rounded-full border-2 border-panel" />
+                        <span className="w-3 h-3 rounded-full bg-panel" />
                       )}
                     </button>
                   )
@@ -109,7 +116,7 @@ export default function ColorPicker({ value, onChange, usedColors = [] }) {
 
         {used.size > 0 && !safeOnly && (
           <p className="text-[11px] text-faint mt-2.5 pt-2 border-t border-hairline">
-            Colors with a white ring are already used by another line.
+            Colors drawn as rings are already used by another line.
           </p>
         )}
         {safeOnly && (

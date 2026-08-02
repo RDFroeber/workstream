@@ -201,9 +201,9 @@ describe('ColorPicker', () => {
   })
 
   it('keeps a pre-existing color selectable after a palette change', () => {
-    // #E08E0B was in the original ten and is no longer offered — a line still
-    // using it must not appear to have no color at all.
-    const { getByLabelText } = render(<ColorPicker value="#E08E0B" onChange={noop} />)
+    // #1E8A6E was the original Green, retired when it proved too close to
+    // Seafoam. A line still using it must not appear to have no color at all.
+    const { getByLabelText } = render(<ColorPicker value="#1E8A6E" onChange={noop} />)
     expect(getByLabelText('Keep the current color')).toBeTruthy()
   })
 

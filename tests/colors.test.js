@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { PALETTE, FAMILIES, nextLineColor, colorName, LINE_COLORS } from '../src/lib/colors'
+import {
+  PALETTE,
+  FAMILIES,
+  nextLineColor,
+  colorName,
+  LINE_COLORS,
+  needsOutline,
+} from '../src/lib/colors'
 import { hex2lab, deltaE, worstCaseDelta, contrast, VISION_TYPES, simLab } from './colorScience'
 
 const worstPair = (list, metric) => {
@@ -35,13 +42,35 @@ describe('palette integrity', () => {
 
   it('every color stays visible against the white panel', () => {
     // The 12px progress marker sits on white; below ~3:1 it disappears.
-    PALETTE.forEach((c) => expect(contrast(c.hex, '#FFFFFF')).toBeGreaterThanOrEqual(3.0))
+    PALETTE.filter((c) => !c.lowContrast).forEach((c) =>
+      expect(contrast(c.hex, '#FFFFFF'), c.name).toBeGreaterThanOrEqual(3.0)
+    )
+  })
+
+  it('allows the contrast floor to be broken only where it is flagged', () => {
+    // Amber is the one true yellow, and true yellow cannot clear 3:1 on white.
+    // The exception is allowed but has to be declared, and stay rare.
+    const exceptions = PALETTE.filter((c) => c.lowContrast)
+    expect(exceptions.length).toBeLessThanOrEqual(1)
+    exceptions.forEach((c) => {
+      // Still has to be visible enough to be worth having.
+      expect(contrast(c.hex, '#FFFFFF'), c.name).toBeGreaterThanOrEqual(2.4)
+    })
+  })
+
+  it('gives flagged colors an outline so the UI can compensate', () => {
+    PALETTE.forEach((c) => expect(needsOutline(c.hex)).toBe(Boolean(c.lowContrast)))
+    expect(needsOutline('#123456')).toBe(false)
   })
 
   it('holds every color to a similar lightness so none dominates the dashboard', () => {
-    const Ls = PALETTE.map((c) => hex2lab(c.hex)[0])
+    const Ls = PALETTE.filter((c) => !c.lowContrast).map((c) => hex2lab(c.hex)[0])
     expect(Math.min(...Ls)).toBeGreaterThan(25)
     expect(Math.max(...Ls)).toBeLessThan(65)
+    // The flagged exception is allowed to be lighter, but not unboundedly so.
+    PALETTE.filter((c) => c.lowContrast).forEach((c) =>
+      expect(hex2lab(c.hex)[0], c.name).toBeLessThan(70)
+    )
   })
 
   it('keeps every pair comfortably above the just-noticeable threshold', () => {

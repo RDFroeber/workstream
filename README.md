@@ -21,6 +21,28 @@ host, syncs across devices, and it's yours to change.
 - **Inbox** — a frictionless capture bucket. The floating "Quick capture" button is always
   on screen; anything you jot down lands here until you send it to a line.
 
+## Layouts
+
+On a phone the stacked list is the whole story. From tablet width up, a switcher
+in the header offers three more ways to see the same lines — the choice is
+remembered, and it always collapses back to the list below 768px regardless of
+what's saved.
+
+- **List** — the original. One line per row, showing only its next action. Still
+  the best view for "what now?"
+- **Grid** — the same cards two or three across, with room for the next few
+  actions per line instead of only one. The overview, when you have the width
+  for it.
+- **Timeline** — every dated task on a shared two-week axis, one track per line.
+  This is the only view that can answer "is anything about to collide?" — the
+  list and Today both sort by urgency, which hides the fact that four things
+  land on the same Wednesday. Days where three or more lines come due are
+  highlighted. Undated work doesn't appear here, and the view says so rather
+  than quietly omitting it.
+- **Split** — every line in a rail on the left, the open one beside it. Keeps
+  the three-tier structure but collapses the top two onto one screen, so you're
+  not paying the click-back-click-forward tax all day.
+
 ## Recurring tasks
 
 Any standalone task or sequence can repeat. The rule is an interval plus a unit (every 2
@@ -62,12 +84,21 @@ against a few constraints, and `npm test` enforces all of them so future edits
 can't quietly break it:
 
 - Every color clears 3:1 contrast against the white panel, so the progress
-  marker stays visible.
+  marker stays visible — with exactly one flagged exception, below.
 - Every color sits near L\* 45–58, so no line visually shouts louder than the
   others on the dashboard.
 - Every pair is separated well past the just-noticeable threshold. The tightest
   remaining pairs are Navy / Indigo and Violet / Purple, adjacent shades within a
   family that are meant to read as related rather than identical.
+
+**Amber is a deliberate exception.** It's the palette's only true yellow, and a
+true yellow can't clear 3:1 on white — pure yellow manages 1.23:1, school-bus
+yellow 1.43:1. Amber sits at 2.61:1, breaking both the contrast floor and the
+lightness band on purpose. It's marked `lowContrast` in the palette so the
+invariant tests permit exactly this one and nothing else, and so the UI can
+compensate: anything filled with a flagged color gets a faint dark inset
+outline to hold its edge. No other color carries that outline, so it never
+becomes ambient noise.
 
 One retired color to be aware of: the original Green was a teal-green that sat
 too close to Seafoam, so Green now uses what was previously Lime's hex and a
@@ -87,7 +118,8 @@ eight, that guarantee is mathematically impossible — dichromatic vision collap
 the color space — so the toggle is honest about the limit rather than pretending
 all 24 work for everyone.
 
-The picker also puts a white ring on any color another line is already using,
+The picker draws any color another line is already using as a ring rather than a
+solid dot,
 since two workstreams in near-identical colors is what actually makes the
 dashboard hard to scan.
 
@@ -241,7 +273,7 @@ iOS and Android without an app store.
 npm test
 ```
 
-96 tests, and the ones worth knowing about:
+128 tests, and the ones worth knowing about:
 
 - **Recurrence date math** — month-end clamping (Jan 31 + 1 month is Feb 28, not Mar 3),
   the schedule-vs-completion anchor distinction, biweekly rules with specific weekdays, and
@@ -254,6 +286,10 @@ npm test
 - **Dark palette** — that every dark variant is readable on the dark panel, doesn't
   glare, stays separable, and keeps its hue. Plus a guard that no component contains a
   hardcoded colour.
+- **Layouts** — that the grid really does show more than one upcoming action, that the
+  timeline flags a crunch day and stays quiet on a calm week, that the split view keeps a
+  valid selection when a line is deleted, and that everything falls back to the list below
+  the tablet breakpoint.
 - **Logo mark** — that the icon keeps the header glyph's exact coordinates and stays
   drawn as open rings, since that's the property that fails first at small sizes.
 - **PWA assets** — that the icons exist, the manifest names the app Lines, paths are

@@ -3,7 +3,7 @@ import { LogOut, Waypoints } from 'lucide-react'
 import Auth from './components/Auth'
 import Nav from './components/Nav'
 import QuickCapture from './components/QuickCapture'
-import DashboardView from './components/DashboardView'
+import DashboardView, { DashboardHeader } from './components/DashboardView'
 import TodayView from './components/TodayView'
 import InboxView from './components/InboxView'
 import WorkstreamView from './components/WorkstreamView'
@@ -12,6 +12,10 @@ import TaskDetail from './components/TaskDetail'
 import Toast from './components/Toast'
 import SetupNotice from './components/SetupNotice'
 import ThemeToggle from './components/ThemeToggle'
+import LayoutSwitcher from './components/LayoutSwitcher'
+import GridLayout from './components/GridLayout'
+import TimelineLayout from './components/TimelineLayout'
+import SplitLayout from './components/SplitLayout'
 import { isConfigured } from './lib/supabaseClient'
 import * as api from './lib/api'
 import { nextLineColor } from './lib/colors'
@@ -30,6 +34,39 @@ export default function App() {
   const [editingWorkstream, setEditingWorkstream] = useState(null) // null | 'new' | workstream
   const [openTaskId, setOpenTaskId] = useState(null)
   const [toast, setToast] = useState(null)
+  // Desktop layout choice. Persisted, but only ever applied at md and above —
+  // the stacked list is the right answer on a phone regardless of what's saved.
+  const [layout, setLayoutState] = useState(() => {
+    try {
+      const v = localStorage.getItem('lines-layout')
+      return ['list', 'grid', 'timeline', 'split'].includes(v) ? v : 'list'
+    } catch {
+      return 'list'
+    }
+  })
+  const [splitSelectedId, setSplitSelectedId] = useState(null)
+
+  const setLayout = useCallback((next) => {
+    setLayoutState(next)
+    try {
+      localStorage.setItem('lines-layout', next)
+    } catch {
+      /* private browsing — the choice just won't persist */
+    }
+  }, [])
+
+  // Below the tablet breakpoint every layout collapses to the list.
+  const [isWide, setIsWide] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const onChange = (e) => setIsWide(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const effectiveLayout = isWide ? layout : 'list'
+  const shellWidth = effectiveLayout === 'list' ? 'max-w-2xl' : 'max-w-7xl'
 
   // --- auth bootstrap ------------------------------------------------------
   useEffect(() => {
@@ -226,7 +263,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-paper">
       <header className="sticky top-0 z-20 bg-paper/90 backdrop-blur border-b border-hairline">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className={`${shellWidth} mx-auto px-4 h-14 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
             <Waypoints size={18} className="text-accent" strokeWidth={2.2} />
             <span className="font-display font-semibold text-ink">Lines</span>
@@ -242,6 +279,9 @@ export default function App() {
             />
           </div>
           <div className="flex items-center gap-2">
+            {!activeWorkstreamId && view === 'dashboard' && (
+              <LayoutSwitcher value={layout} onChange={setLayout} />
+            )}
             <ThemeToggle />
             <button
               onClick={() => api.signOut()}
@@ -270,15 +310,59 @@ export default function App() {
             onReorderTasks={handleReorderTasks}
           />
         ) : view === 'dashboard' ? (
-          <DashboardView
-            workstreams={workstreams}
-            tasksByWorkstream={tasksByWorkstream}
-            dependencies={dependencies}
-            tasksById={tasksById}
-            onOpen={openWorkstream}
-            onNewWorkstream={() => setEditingWorkstream('new')}
-            onReorder={handleReorderWorkstreams}
-          />
+          effectiveLayout === 'list' ? (
+            <DashboardView
+              workstreams={workstreams}
+              tasksByWorkstream={tasksByWorkstream}
+              dependencies={dependencies}
+              tasksById={tasksById}
+              onOpen={openWorkstream}
+              onNewWorkstream={() => setEditingWorkstream('new')}
+              onReorder={handleReorderWorkstreams}
+            />
+          ) : (
+            <div className="max-w-7xl mx-auto px-4 pb-28 pt-5">
+              <DashboardHeader
+                workstreams={workstreams}
+                onNewWorkstream={() => setEditingWorkstream('new')}
+              />
+              {effectiveLayout === 'grid' && (
+                <GridLayout
+                  workstreams={workstreams}
+                  tasksByWorkstream={tasksByWorkstream}
+                  dependencies={dependencies}
+                  tasksById={tasksById}
+                  workstreamsById={workstreamsById}
+                  onOpen={openWorkstream}
+                  onReorder={handleReorderWorkstreams}
+                />
+              )}
+              {effectiveLayout === 'timeline' && (
+                <TimelineLayout
+                  workstreams={workstreams}
+                  tasksByWorkstream={tasksByWorkstream}
+                  onOpen={openWorkstream}
+                  onOpenTask={openTaskDetail}
+                />
+              )}
+              {effectiveLayout === 'split' && (
+                <SplitLayout
+                  workstreams={workstreams}
+                  tasksByWorkstream={tasksByWorkstream}
+                  dependencies={dependencies}
+                  tasksById={tasksById}
+                  workstreamsById={workstreamsById}
+                  selectedId={splitSelectedId}
+                  onSelect={setSplitSelectedId}
+                  onEditWorkstream={(ws) => setEditingWorkstream(ws)}
+                  onOpenTask={openTaskDetail}
+                  onCreateTask={handleCreateTask}
+                  onToggleStatus={handleSetStatus}
+                  onReorderTasks={handleReorderTasks}
+                />
+              )}
+            </div>
+          )
         ) : view === 'today' ? (
           <TodayView
             workstreams={workstreams}

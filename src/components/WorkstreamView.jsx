@@ -5,6 +5,7 @@ import { isRecurring, describeRecurrence } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { useLineColor } from '../lib/theme'
+import { lineFill } from '../lib/lineStyle'
 
 export default function WorkstreamView({
   workstream,
@@ -18,6 +19,7 @@ export default function WorkstreamView({
   onCreateTask,
   onToggleStatus,
   onReorderTasks,
+  embedded = false,
 }) {
   const lineColor = useLineColor()
   const [adding, setAdding] = useState(null) // null | 'standalone' | 'sequence'
@@ -49,19 +51,21 @@ export default function WorkstreamView({
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pb-28 pt-4">
-      <button
-        onClick={onBack}
-        className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink mb-4 -ml-1 px-1 py-1"
-      >
-        <ArrowLeft size={15} /> All lines
-      </button>
+    <div className={embedded ? 'px-4 pb-6 pt-4' : 'max-w-2xl mx-auto px-4 pb-28 pt-4'}>
+      {!embedded && (
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink mb-4 -ml-1 px-1 py-1"
+        >
+          <ArrowLeft size={15} /> All lines
+        </button>
+      )}
 
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2.5 min-w-0">
           <span
             className="w-3 h-3 rounded-full shrink-0"
-            style={{ background: lineColor(workstream.color) }}
+            style={lineFill(lineColor(workstream.color), workstream.color)}
           />
           <h1 className="font-display font-semibold text-2xl text-ink tracking-tight truncate">
             {workstream.name}

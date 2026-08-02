@@ -4,6 +4,31 @@ import { isRecurring } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { useLineColor } from '../lib/theme'
+import { lineFill } from '../lib/lineStyle'
+
+/** Title, line count and the "New line" button — shared by every layout. */
+export function DashboardHeader({ workstreams, onNewWorkstream }) {
+  const attention = workstreams.filter(
+    (w) => w.status === 'at_risk' || w.status === 'blocked'
+  ).length
+  return (
+    <div className="flex items-start justify-between mb-6">
+      <div>
+        <h1 className="font-display font-semibold text-2xl text-ink tracking-tight">System map</h1>
+        <p className="text-sm text-muted mt-0.5">
+          {workstreams.length} {workstreams.length === 1 ? 'line' : 'lines'}
+          {attention > 0 && <span className="text-warn"> · {attention} need attention</span>}
+        </p>
+      </div>
+      <button
+        onClick={onNewWorkstream}
+        className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity"
+      >
+        <Plus size={16} /> New line
+      </button>
+    </div>
+  )
+}
 
 export default function DashboardView({
   workstreams,
@@ -81,7 +106,7 @@ export default function DashboardView({
                     <DragHandle handleProps={handleProps} label={`Reorder ${ws.name}`} />
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ background: lineColor(ws.color) }}
+                      style={lineFill(lineColor(ws.color), ws.color)}
                     />
                     <span className="font-display font-semibold text-[15px] text-ink truncate">
                       {ws.name}
@@ -102,7 +127,10 @@ export default function DashboardView({
                   <div className="relative h-1.5 rounded-full mb-2 bg-hairline">
                     <div
                       className="absolute inset-y-0 left-0 rounded-full transition-all"
-                      style={{ width: `${Math.max(progress * 100, 2)}%`, background: lineColor(ws.color) }}
+                      style={{
+                        width: `${Math.max(progress * 100, 2)}%`,
+                        ...lineFill(lineColor(ws.color), ws.color),
+                      }}
                     />
                     <div
                       className="absolute rounded-full bg-panel border-2"

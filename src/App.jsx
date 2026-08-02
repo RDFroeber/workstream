@@ -671,6 +671,7 @@ export default function App() {
           snapshotAt={snapshotAt}
           onClose={() => setShowSettings(false)}
           onSyncNow={flush}
+          data={{ workstreams, tasks, dependencies, taskLinks, inbox }}
         />
       )}
 

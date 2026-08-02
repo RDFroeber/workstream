@@ -17,7 +17,7 @@ import { DueBadge } from './ui'
 import RecurrenceEditor from './RecurrenceEditor'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
-import { linksFor } from '../lib/api'
+import { linksFor, dependentsOf } from '../lib/api'
 import { extractLinks, shortenLink } from '../lib/links'
 import { useLineColor } from '../lib/theme'
 
@@ -111,7 +111,10 @@ export default function TaskDetail({
 
   // candidates for "blocked by": every other task except this one and (if sequence) its own steps
   const excludeIds = new Set([task.id, ...steps.map((s) => s.id)])
-  const depCandidates = allTasksFlat.filter((t) => !excludeIds.has(t.id))
+  // Anything already waiting on this task, however indirectly, is excluded —
+  // choosing one would create a cycle and leave both ends blocked forever.
+  const wouldCycle = dependentsOf(task.id, dependencies)
+  const depCandidates = allTasksFlat.filter((t) => !excludeIds.has(t.id) && !wouldCycle.has(t.id))
   // Already-linked tasks are filtered out — offering them again would just hit
   // the database's unique constraint.
   const linkCandidates = allTasksFlat.filter(

@@ -42,6 +42,35 @@ sign-in: guideline 4.8 only triggers on a third-party or social login, and Sign
 in with Apple is the option that *satisfies* it rather than one that creates the
 obligation. See `docs/app-store.md`.
 
+## Getting your data out
+
+Settings offers two downloads:
+
+- **JSON** — every line, task, dependency, link and inbox item, with ids intact,
+  so the relationships between them survive. This is the backup.
+- **CSV** — the tasks flattened for a spreadsheet, with relationships spelled
+  out as names rather than ids. Easier to read, and deliberately lossy: it is
+  not a complete backup, and the panel says so.
+
+Nothing here is locked in. The CSV is written with CRLF endings and a byte order
+mark because it exists to be opened in Excel, which misreads plain UTF-8.
+
+## When something breaks
+
+An error boundary wraps the whole app, so a render error shows an explanation
+instead of a white screen. It sits outside the theme provider — if that throws,
+something still has to catch it — and its styling comes from the CSS variables on
+`<html>` rather than from React context, so the fallback renders either way.
+
+It offers, in order: try again, reload, **download a copy of your data**, and as
+a last resort clear the cached copy. The download matters more than it looks:
+when the app can't render, the export in Settings is unreachable, which is
+exactly when you'd want your data. It reads the cached snapshot rather than live
+state, since live state is what just failed.
+
+Worth knowing what a boundary does not catch: errors inside event handlers, in
+async code, or thrown by the boundary itself. Those still go to the console.
+
 ## Updating a deployed copy
 
 The service worker uses `registerType: 'autoUpdate'`, so a new build takes over
@@ -410,7 +439,7 @@ npm test          # run once
 npm run coverage  # with a coverage report
 ```
 
-523 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
+579 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
 that can silently lose data lives — is at 92%, and the API layer at 99%.
 
 What deliberately isn't covered, and why:

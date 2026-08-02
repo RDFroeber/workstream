@@ -241,8 +241,19 @@ export function applyLocally(data, op, args, localId = null) {
     }
     case 'deleteWorkstream': {
       const [id] = args
+      // Mirror the database's ON DELETE CASCADE. Dropping only the workstream
+      // and its tasks left dependencies and links pointing at rows that no
+      // longer exist, which the server cleans up but the local copy did not —
+      // so offline the screen disagreed with itself until the next sync.
+      const orphaned = new Set(d.tasks.filter((t) => t.workstream_id === id).map((t) => t.id))
       d.workstreams = d.workstreams.filter((w) => w.id !== id)
       d.tasks = d.tasks.filter((t) => t.workstream_id !== id)
+      d.dependencies = d.dependencies.filter(
+        (x) => !orphaned.has(x.task_id) && !orphaned.has(x.depends_on_task_id)
+      )
+      d.taskLinks = d.taskLinks.filter(
+        (x) => !orphaned.has(x.task_a_id) && !orphaned.has(x.task_b_id)
+      )
       break
     }
     case 'createTask': {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Bell, BellOff, CloudOff, Check } from 'lucide-react'
+import { X, Bell, BellOff, CloudOff, Check, Download, FileSpreadsheet } from 'lucide-react'
 import Modal from './Modal'
 import {
   supported,
@@ -8,8 +8,9 @@ import {
   getPrefs,
   setPrefs,
 } from '../lib/notifications'
+import { downloadJSON, downloadCSV } from '../lib/export'
 
-export default function SettingsPanel({ online, pending, snapshotAt, onClose, onSyncNow }) {
+export default function SettingsPanel({ online, pending, snapshotAt, onClose, onSyncNow, data }) {
   const [prefs, setLocalPrefs] = useState(getPrefs)
   const [perm, setPerm] = useState(permission())
 
@@ -143,6 +144,36 @@ export default function SettingsPanel({ online, pending, snapshotAt, onClose, on
         <p className="text-xs text-faint mt-2 leading-relaxed">
           Lines keeps a copy of your last load, so it opens and stays usable with no connection.
           Edits made offline are queued and replayed in order when you're back.
+        </p>
+      </section>
+
+      {/* Your data ------------------------------------------------------- */}
+      <section className="pt-4 mt-4 border-t border-hairline">
+        <h3 className="text-xs font-medium text-muted mb-2">Your data</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => downloadJSON(data)}
+            className="rounded-lg border border-hairlineStrong px-3 py-2.5 text-left hover:border-ink transition-colors"
+          >
+            <span className="flex items-center gap-1.5 text-sm text-ink">
+              <Download size={14} /> JSON
+            </span>
+            <span className="block text-xs text-muted mt-0.5">Everything, for a backup</span>
+          </button>
+          <button
+            onClick={() => downloadCSV(data)}
+            className="rounded-lg border border-hairlineStrong px-3 py-2.5 text-left hover:border-ink transition-colors"
+          >
+            <span className="flex items-center gap-1.5 text-sm text-ink">
+              <FileSpreadsheet size={14} /> CSV
+            </span>
+            <span className="block text-xs text-muted mt-0.5">Tasks, for a spreadsheet</span>
+          </button>
+        </div>
+        <p className="text-xs text-faint mt-2 leading-relaxed">
+          The JSON file holds every line, task, dependency and link, so nothing here is locked in.
+          The CSV flattens the tasks and spells relationships out as names rather than ids — easier
+          to read, but not a complete backup.
         </p>
       </section>
     </Modal>

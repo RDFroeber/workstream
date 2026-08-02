@@ -234,3 +234,79 @@ describe('notification delivery does not hang', () => {
     expect(fallback).toContain('catch')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Blocker cycles and cascade cleanup
+// ---------------------------------------------------------------------------
+import { dependentsOf } from '../src/lib/api'
+import { applyLocally } from '../src/lib/offline'
+
+describe('dependentsOf', () => {
+  it('finds a direct dependent', () => {
+    expect([...dependentsOf('b', [{ task_id: 'a', depends_on_task_id: 'b' }])]).toEqual(['a'])
+  })
+
+  it('follows the chain', () => {
+    // C waits on B waits on A. Letting A wait on C would close the loop.
+    const deps = [
+      { task_id: 'b', depends_on_task_id: 'a' },
+      { task_id: 'c', depends_on_task_id: 'b' },
+    ]
+    expect([...dependentsOf('a', deps)].sort()).toEqual(['b', 'c'])
+  })
+
+  it('is empty for a task nothing waits on', () => {
+    expect([...dependentsOf('x', [{ task_id: 'a', depends_on_task_id: 'b' }])]).toEqual([])
+  })
+
+  it('terminates on a cycle that already exists', () => {
+    // Older data could already contain one; the walk must not spin forever.
+    const deps = [
+      { task_id: 'a', depends_on_task_id: 'b' },
+      { task_id: 'b', depends_on_task_id: 'a' },
+    ]
+    expect([...dependentsOf('a', deps)].sort()).toEqual(['a', 'b'])
+  })
+
+  it('copes with no dependencies at all', () => {
+    expect([...dependentsOf('a', [])]).toEqual([])
+  })
+})
+
+describe('deleting a line offline cleans up after itself', () => {
+  it('drops dependencies and links that pointed into it', () => {
+    // The database cascades these; the local copy did not, so offline the
+    // screen disagreed with itself until the next sync.
+    const before = {
+      workstreams: [{ id: 'w1' }, { id: 'w2' }],
+      tasks: [
+        { id: 't1', workstream_id: 'w1' },
+        { id: 't2', workstream_id: 'w2' },
+      ],
+      dependencies: [{ id: 'dep', task_id: 't2', depends_on_task_id: 't1' }],
+      taskLinks: [{ id: 'l1', task_a_id: 't1', task_b_id: 't2' }],
+      inbox: [],
+    }
+    const after = applyLocally(before, 'deleteWorkstream', ['w1'])
+    expect(after.tasks.map((t) => t.id)).toEqual(['t2'])
+    expect(after.dependencies).toEqual([])
+    expect(after.taskLinks).toEqual([])
+  })
+
+  it('leaves unrelated links alone', () => {
+    const before = {
+      workstreams: [{ id: 'w1' }, { id: 'w2' }],
+      tasks: [
+        { id: 't1', workstream_id: 'w1' },
+        { id: 't2', workstream_id: 'w2' },
+        { id: 't3', workstream_id: 'w2' },
+      ],
+      dependencies: [{ id: 'dep', task_id: 't3', depends_on_task_id: 't2' }],
+      taskLinks: [{ id: 'l1', task_a_id: 't2', task_b_id: 't3' }],
+      inbox: [],
+    }
+    const after = applyLocally(before, 'deleteWorkstream', ['w1'])
+    expect(after.dependencies).toHaveLength(1)
+    expect(after.taskLinks).toHaveLength(1)
+  })
+})

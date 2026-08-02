@@ -326,6 +326,29 @@ export async function removeTaskLink(id) {
   if (error) throw error
 }
 
+/**
+ * Every task that (directly or transitively) already waits on `taskId`.
+ *
+ * Offering these as blockers would let you build a cycle — A waits on B while B
+ * waits on A — and both tasks would then show as permanently blocked with no
+ * way to tell which to do first. Nothing in the database prevents it, so the
+ * picker has to.
+ */
+export function dependentsOf(taskId, dependencies) {
+  const found = new Set()
+  const queue = [taskId]
+  while (queue.length) {
+    const current = queue.shift()
+    for (const d of dependencies) {
+      if (d.depends_on_task_id === current && !found.has(d.task_id)) {
+        found.add(d.task_id)
+        queue.push(d.task_id)
+      }
+    }
+  }
+  return found
+}
+
 /** Every task id linked to `taskId`, in either direction. */
 export function linkedIdsFor(taskId, links) {
   const out = []

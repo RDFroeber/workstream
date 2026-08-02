@@ -159,3 +159,58 @@ describe('DOM validity with drag handles added', () => {
     expect(queryByText('Make this repeat')).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Color picker
+// ---------------------------------------------------------------------------
+import ColorPicker from '../src/components/ColorPicker'
+import { PALETTE } from '../src/lib/colors'
+import { fireEvent } from '@testing-library/react'
+
+describe('ColorPicker', () => {
+  it('renders every palette color as its own labelled swatch', () => {
+    const { container } = render(<ColorPicker value={PALETTE[0].hex} onChange={noop} />)
+    PALETTE.forEach((c) => {
+      expect(container.querySelector(`[aria-label^="${c.name}"]`), c.name).toBeTruthy()
+    })
+  })
+
+  it('flags colors already used by other lines', () => {
+    const taken = PALETTE[3].hex
+    const { container } = render(
+      <ColorPicker value={PALETTE[0].hex} onChange={noop} usedColors={[taken]} />
+    )
+    const swatch = container.querySelector(`[aria-label="${PALETTE[3].name}, already in use"]`)
+    expect(swatch).toBeTruthy()
+  })
+
+  it('does not flag the color this line already has as "in use"', () => {
+    const mine = PALETTE[3].hex
+    const { container } = render(
+      <ColorPicker value={mine} onChange={noop} usedColors={[mine]} />
+    )
+    expect(container.querySelector(`[aria-label="${PALETTE[3].name}, already in use"]`)).toBeNull()
+  })
+
+  it('narrows to the eight-color safe set when toggled', () => {
+    const { container, getByText } = render(<ColorPicker value={PALETTE[0].hex} onChange={noop} />)
+    const before = container.querySelectorAll('[aria-pressed]').length
+    fireEvent.click(getByText('High-contrast set'))
+    const after = container.querySelectorAll('[aria-pressed]').length
+    expect(after).toBeLessThan(before)
+  })
+
+  it('keeps a pre-existing color selectable after a palette change', () => {
+    // #E08E0B was in the original ten and is no longer offered — a line still
+    // using it must not appear to have no color at all.
+    const { getByLabelText } = render(<ColorPicker value="#E08E0B" onChange={noop} />)
+    expect(getByLabelText('Keep the current color')).toBeTruthy()
+  })
+
+  it('has no nested buttons', () => {
+    const { container } = render(
+      <ColorPicker value={PALETTE[0].hex} onChange={noop} usedColors={[PALETTE[2].hex]} />
+    )
+    expectNoNestedButtons(container)
+  })
+})

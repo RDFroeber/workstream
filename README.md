@@ -55,6 +55,36 @@ Recurring work is **excluded from a line's progress count**, since it never fini
 otherwise a line with a weekly task would sit at 0% forever. A line made only of recurring
 upkeep shows a dashed track and a repeat count instead of a progress bar.
 
+## Line colors
+
+24 colors across 8 hue families. They aren't arbitrary — the palette was built
+against a few constraints, and `npm test` enforces all of them so future edits
+can't quietly break it:
+
+- Every color clears 3:1 contrast against the white panel, so the progress
+  marker stays visible.
+- Every color sits near L\* 45–58, so no line visually shouts louder than the
+  others on the dashboard.
+- Every pair is separated well past the just-noticeable threshold. Colors within
+  one family (Green / Seafoam) are the closest by design — meant to read as
+  related, not identical.
+
+**New lines get colors automatically**, in an order computed by a max-min search
+over perceptual distance measured simultaneously under normal vision and all
+three types of color blindness. So if you never touch the color picker, your
+first eight workstreams still end up maximally distinguishable rather than
+drifting into adjacent hues.
+
+**The "high-contrast set" toggle** in the picker narrows to eight colors that
+stay tellable apart under deuteranopia, protanopia and tritanopia. Past about
+eight, that guarantee is mathematically impossible — dichromatic vision collapses
+the color space — so the toggle is honest about the limit rather than pretending
+all 24 work for everyone.
+
+The picker also puts a white ring on any color another line is already using,
+since two workstreams in near-identical colors is what actually makes the
+dashboard hard to scan.
+
 ## Reordering
 
 Everything orderable is drag-and-drop: workstreams on the dashboard, tasks within a
@@ -158,7 +188,7 @@ iOS and Android without an app store.
 npm test
 ```
 
-32 tests, and the ones worth knowing about:
+57 tests, and the ones worth knowing about:
 
 - **Recurrence date math** — month-end clamping (Jan 31 + 1 month is Feb 28, not Mar 3),
   the schedule-vs-completion anchor distinction, biweekly rules with specific weekdays, and
@@ -168,6 +198,10 @@ npm test
   is invalid HTML that browsers handle unpredictably. Adding drag handles to clickable cards
   is exactly the change that introduces this.
 - **Progress accounting** — that recurring upkeep stays out of the completion percentage.
+- **Palette guarantees** — contrast, lightness consistency, pairwise separation, and
+  that the colorblind-safe subset really is safe under all three dichromacies. The math
+  lives in `tests/colorScience.js` (CIEDE2000 + Viénot dichromat simulation), kept out of
+  `src/` since the app has no runtime need for it.
 
 ## Extending it
 

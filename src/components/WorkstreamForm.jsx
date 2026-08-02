@@ -1,12 +1,20 @@
 import { useState } from 'react'
 import { X, Trash2 } from 'lucide-react'
-import { LINE_COLORS } from '../lib/colors'
+import { PALETTE } from '../lib/colors'
 import { STATUS_OPTIONS } from './ui'
 import Modal from './Modal'
+import ColorPicker from './ColorPicker'
 
-export default function WorkstreamForm({ initial, suggestedColor, onSave, onDelete, onClose }) {
+export default function WorkstreamForm({
+  initial,
+  suggestedColor,
+  usedColors = [],
+  onSave,
+  onDelete,
+  onClose,
+}) {
   const [name, setName] = useState(initial?.name || '')
-  const [color, setColor] = useState(initial?.color || suggestedColor || LINE_COLORS[0])
+  const [color, setColor] = useState(initial?.color || suggestedColor || PALETTE[0].hex)
   const [status, setStatus] = useState(initial?.status || 'active')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -39,26 +47,7 @@ export default function WorkstreamForm({ initial, suggestedColor, onSave, onDele
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-muted mb-2">Color</label>
-          <div className="flex flex-wrap gap-2">
-            {LINE_COLORS.map((c) => (
-              <button
-                type="button"
-                key={c}
-                onClick={() => setColor(c)}
-                className="w-7 h-7 rounded-full transition-transform"
-                style={{
-                  background: c,
-                  outline: color === c ? `2px solid ${c}` : 'none',
-                  outlineOffset: 2,
-                  transform: color === c ? 'scale(1.05)' : 'scale(1)',
-                }}
-                aria-label={c}
-              />
-            ))}
-          </div>
-        </div>
+        <ColorPicker value={color} onChange={setColor} usedColors={usedColors} />
 
         {initial && (
           <div>

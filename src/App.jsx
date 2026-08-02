@@ -315,6 +315,9 @@ export default function App() {
           suggestedColor={
             editingWorkstream === 'new' ? nextLineColor(workstreams.map((w) => w.color)) : undefined
           }
+          usedColors={workstreams
+            .filter((w) => editingWorkstream === 'new' || w.id !== editingWorkstream.id)
+            .map((w) => w.color)}
           onSave={handleSaveWorkstream}
           onDelete={editingWorkstream !== 'new' ? handleDeleteWorkstream : undefined}
           onClose={() => setEditingWorkstream(null)}

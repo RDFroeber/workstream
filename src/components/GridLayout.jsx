@@ -40,6 +40,10 @@ export default function GridLayout({
               <div
                 role="button"
                 tabIndex={0}
+                // Without this the card's accessible name is its whole
+                // contents read aloud — name, status, progress and next action
+                // run together as one string.
+                aria-label={`Open ${ws.name}`}
                 onClick={() => onOpen(ws.id)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {

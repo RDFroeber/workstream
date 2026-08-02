@@ -5,9 +5,10 @@ import { ThemeProvider } from './lib/theme'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 
-// Keeps the shell available with no network. `onNeedRefresh` deliberately just
-// updates on the next load rather than interrupting — this is a tracker, not
-// something worth a modal mid-task.
+// Keeps the shell available with no network, and takes over as soon as a new
+// build is available. Paired with registerType: 'autoUpdate' — see the comment
+// in vite.config.js for why the default ('prompt') silently pins users to
+// whichever build they first loaded.
 registerSW({ immediate: true })
 
 ReactDOM.createRoot(document.getElementById('root')).render(

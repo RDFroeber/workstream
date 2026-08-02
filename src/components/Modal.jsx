@@ -17,6 +17,8 @@ export default function Modal({ children, onClose, wide = false }) {
         aria-hidden="true"
       />
       <div
+        role="dialog"
+        aria-modal="true"
         className={`relative bg-panel w-full ${
           wide ? 'sm:max-w-lg' : 'sm:max-w-md'
         } rounded-t-2xl sm:rounded-card border border-hairline shadow-raised p-5 sm:p-6 max-h-[88vh] overflow-y-auto`}

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react'
+import { todayISO } from '../src/lib/dates'
 
 // A fake backend with real in-memory storage, so App's data flow, optimistic
 // updates and reload cycle are exercised end to end rather than stubbed out.
@@ -165,7 +166,14 @@ const fake = vi.hoisted(() => {
 // (summarizeWorkstream, buildWorkstreamTree, linksFor…) stay real, since
 // replacing them would test the mock rather than the app.
 vi.mock('../src/lib/api', async (orig) => ({ ...(await orig()), ...fake.api }))
-vi.mock('../src/lib/supabaseClient', () => ({ supabase: {}, isConfigured: true }))
+// isConfigured is read at render time, so a getter lets one test flip it.
+const cfg = vi.hoisted(() => ({ value: true }))
+vi.mock('../src/lib/supabaseClient', () => ({
+  supabase: {},
+  get isConfigured() {
+    return cfg.value
+  },
+}))
 
 const App = (await import('../src/App')).default
 const { ThemeProvider } = await import('../src/lib/theme')
@@ -568,5 +576,224 @@ describe('App — the other layouts in place', () => {
     fireEvent.click(await screen.findByLabelText('Settings'))
     expect(await screen.findByText('Settings')).toBeTruthy()
     expect(screen.getByText('Connected')).toBeTruthy()
+  })
+})
+
+describe('App — task operations end to end', () => {
+  const line = { id: 'w1', name: 'Website', color: '#6C4FA0', status: 'active', sort_order: 0 }
+  const t = (o) => ({
+    workstream_id: 'w1',
+    parent_id: null,
+    item_type: 'standalone',
+    status: 'todo',
+    notes: '',
+    due_date: null,
+    sort_order: 0,
+    ...o,
+  })
+
+  const openLine = async () => {
+    await renderApp()
+    fireEvent.click(await screen.findByText('Website'))
+    return screen.findByText('All lines')
+  }
+
+  beforeEach(() => {
+    // A copy, not the shared fixture: the fake backend mutates rows in place,
+    // so pushing the same object would let one test's rename leak into the next.
+    fake.db.workstreams.push({ ...line })
+  })
+
+  it('renames a line through the edit form', async () => {
+    await openLine()
+    fireEvent.click(screen.getByLabelText('Edit line'))
+    fireEvent.change(await screen.findByPlaceholderText(/Website redesign/), {
+      target: { value: 'Renamed line' },
+    })
+    fireEvent.click(screen.getByText('Save changes'))
+    await waitFor(() => expect(fake.db.workstreams[0].name).toBe('Renamed line'))
+  })
+
+  it('changes a line status', async () => {
+    await openLine()
+    fireEvent.click(screen.getByLabelText('Edit line'))
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'blocked' } })
+    fireEvent.click(screen.getByText('Save changes'))
+    await waitFor(() => expect(fake.db.workstreams[0].status).toBe('blocked'))
+  })
+
+  it('adds a step to a sequence', async () => {
+    fake.db.tasks.push(t({ id: 'seq', title: 'Monthly close', item_type: 'sequence' }))
+    await openLine()
+    fireEvent.click(await screen.findByText('Monthly close'))
+    const stepInput = await screen.findByPlaceholderText('Add a step…')
+    fireEvent.change(stepInput, { target: { value: 'Pull reports' } })
+    fireEvent.submit(stepInput.closest('form'))
+    await waitFor(() =>
+      expect(fake.db.tasks.some((x) => x.title === 'Pull reports' && x.parent_id === 'seq')).toBe(
+        true
+      )
+    )
+  })
+
+  it('deletes a task', async () => {
+    fake.db.tasks.push(t({ id: 't1', title: 'Doomed task' }))
+    await openLine()
+    fireEvent.click(await screen.findByText('Doomed task'))
+    fireEvent.click(await screen.findByText('Delete'))
+    fireEvent.click(screen.getAllByText('Delete').find((n) => n.tagName === 'BUTTON'))
+    await waitFor(() => expect(fake.db.tasks).toHaveLength(0))
+  })
+
+  it('adds and removes a blocker', async () => {
+    fake.db.tasks.push(t({ id: 't1', title: 'Blocked task' }), t({ id: 't2', title: 'The blocker', sort_order: 1 }))
+    await openLine()
+    fireEvent.click(await screen.findByText('Blocked task'))
+    fireEvent.click(await screen.findByText('Link a blocker'))
+    // The title also shows in the list behind the panel, so scope to the picker.
+    const depPicker = (await screen.findByPlaceholderText('Search tasks…')).closest('div')
+    fireEvent.click(within(depPicker).getByText('The blocker'))
+    await waitFor(() => expect(fake.db.dependencies).toHaveLength(1))
+    expect(fake.db.dependencies[0]).toMatchObject({ task_id: 't1', depends_on_task_id: 't2' })
+
+    fireEvent.click(screen.getByText('Blocked by').parentElement.querySelector('button'))
+    await waitFor(() => expect(fake.db.dependencies).toHaveLength(0))
+  })
+
+  it('links two related tasks and unlinks them', async () => {
+    fake.db.tasks.push(t({ id: 't1', title: 'First task' }), t({ id: 't2', title: 'Second task', sort_order: 1 }))
+    await openLine()
+    fireEvent.click(await screen.findByText('First task'))
+    fireEvent.click(await screen.findByText('Link a related task'))
+    const linkPicker = (await screen.findByPlaceholderText('Search tasks…')).closest('div')
+    fireEvent.click(within(linkPicker).getByText('Second task'))
+    await waitFor(() => expect(fake.db.task_links).toHaveLength(1))
+
+    fireEvent.click(await screen.findByLabelText('Unlink Second task'))
+    await waitFor(() => expect(fake.db.task_links).toHaveLength(0))
+  })
+
+  it('finishes a recurring sequence cycle and resets its steps', async () => {
+    fake.db.tasks.push(
+      t({
+        id: 'seq',
+        title: 'Monthly close',
+        item_type: 'sequence',
+        due_date: '2026-08-01',
+        recurrence_unit: 'month',
+        recurrence_interval: 1,
+        recurrence_anchor: 'schedule',
+        recurrence_count: 0,
+      }),
+      t({ id: 's1', title: 'Step one', parent_id: 'seq', item_type: 'step', status: 'done' })
+    )
+    await openLine()
+    fireEvent.click(await screen.findByText('Monthly close'))
+    fireEvent.click(await screen.findByText(/Finish this cycle/))
+    await waitFor(() => expect(fake.db.tasks.find((x) => x.id === 's1').status).toBe('todo'))
+    expect(fake.db.tasks.find((x) => x.id === 'seq').due_date).not.toBe('2026-08-01')
+    expect(await screen.findByText(/Cycle complete/)).toBeTruthy()
+  })
+
+  it('discards an inbox item', async () => {
+    fake.db.inbox_items.push({ id: 'i1', text: 'Not needed', created_at: new Date().toISOString() })
+    await renderApp()
+    clickNav('Inbox')
+    const row = (await screen.findByText('Not needed')).closest('div').parentElement
+    fireEvent.click(within(row).getAllByRole('button')[0])
+    await waitFor(() => expect(fake.db.inbox_items).toHaveLength(0))
+  })
+
+  it('reports queued writes the server refuses on reconnect', async () => {
+    await renderApp()
+    setOnline(false)
+    fireEvent.click(await screen.findByText('Quick capture'))
+    const cap = screen.getByPlaceholderText(/Capture anything/)
+    fireEvent.change(cap, { target: { value: 'doomed capture' } })
+    fireEvent.submit(cap.closest('form'))
+    await screen.findByText(/Offline/)
+
+    // A 4xx means the write will never succeed, so it is dropped and reported
+    // rather than blocking the queue forever.
+    fake.state.failNext = Object.assign(new Error('rejected'), { status: 400 })
+    await act(async () => setOnline(true))
+    expect(await screen.findByText(/could not be saved/)).toBeTruthy()
+  })
+
+  it('opens a task from the daily rollup', async () => {
+    fake.db.tasks.push(t({ id: 't1', title: 'Due today thing', due_date: todayISO() }))
+    await renderApp()
+    clickNav('Today')
+    fireEvent.click(await screen.findByText('Due today thing'))
+    expect(await screen.findByPlaceholderText(/context worth remembering/)).toBeTruthy()
+  })
+})
+
+describe('App — before it is configured', () => {
+  it('shows setup instructions instead of a blank page', async () => {
+    // A deploy with no environment variables must explain itself.
+    cfg.value = false
+    await renderApp()
+    expect(await screen.findByText('One step left')).toBeTruthy()
+    cfg.value = true
+  })
+})
+
+describe('App — two mutations in a row', () => {
+  it('triaging offline both creates the task and clears the inbox item', async () => {
+    // handleTriage fires two mutations back to back, which is the path where a
+    // stale dataRef would have let the second undo the first. Note this test
+    // does NOT prove that: Testing Library wraps events in act(), which flushes
+    // effects synchronously, so the timing window can't be reproduced in jsdom.
+    // It covers the flow; the ref is advanced synchronously in mutate() so the
+    // ordering doesn't depend on when effects happen to run.
+    fake.db.workstreams.push({
+      id: 'w1',
+      name: 'Website',
+      color: '#6C4FA0',
+      status: 'active',
+      sort_order: 0,
+    })
+    fake.db.inbox_items.push({ id: 'i1', text: 'a captured thought', created_at: 'now' })
+    await renderApp()
+    setOnline(false)
+
+    clickNav('Inbox')
+    fireEvent.click(await screen.findByText(/Send to a line/))
+    fireEvent.click(await screen.findByText('Website'))
+
+    // The inbox empties...
+    expect(await screen.findByText(/Inbox zero/)).toBeTruthy()
+    // ...and the task is really on the line, not silently discarded.
+    clickNav('Lines')
+    fireEvent.click(await screen.findByText('Website'))
+    expect(await screen.findByText('a captured thought')).toBeTruthy()
+
+    // Both writes are queued, in order.
+    const outbox = JSON.parse(localStorage.getItem('lines-outbox'))
+    expect(outbox.map((o) => o.op)).toEqual(['createTask', 'deleteInboxItem'])
+  })
+
+  it('survives the round trip when the connection comes back', async () => {
+    fake.db.workstreams.push({
+      id: 'w1',
+      name: 'Website',
+      color: '#6C4FA0',
+      status: 'active',
+      sort_order: 0,
+    })
+    fake.db.inbox_items.push({ id: 'i1', text: 'a captured thought', created_at: 'now' })
+    await renderApp()
+    setOnline(false)
+    clickNav('Inbox')
+    fireEvent.click(await screen.findByText(/Send to a line/))
+    fireEvent.click(await screen.findByText('Website'))
+    await screen.findByText(/Inbox zero/)
+
+    await act(async () => setOnline(true))
+    await waitFor(() => {
+      expect(fake.db.tasks.map((t) => t.title)).toEqual(['a captured thought'])
+      expect(fake.db.inbox_items).toHaveLength(0)
+    })
   })
 })

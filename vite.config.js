@@ -10,7 +10,12 @@ export default defineConfig({
       // index.html, so the plugin only handles the service worker.
       injectRegister: null,
       manifest: false,
-      registerType: 'prompt',
+      // autoUpdate, not 'prompt'. With 'prompt' the new worker only calls
+      // skipWaiting() when it receives a message from updateSW(), which is
+      // raised from an onNeedRefresh handler — and there isn't one. The result
+      // is a worker that installs, waits forever, and keeps serving the build
+      // the user first loaded. No deploy would ever reach anyone.
+      registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         // Any navigation falls back to the cached shell, so opening the app

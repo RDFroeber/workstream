@@ -86,9 +86,19 @@ beforeEach(() => {
 describe('auth', () => {
   it('signs up and signs in', async () => {
     await api.signUp('a@b.com', 'pw123456')
-    expect(calledWith('signUp')[0]).toEqual({ email: 'a@b.com', password: 'pw123456' })
+    expect(calledWith('signUp')[0]).toMatchObject({ email: 'a@b.com', password: 'pw123456' })
     await api.signIn('a@b.com', 'pw123456')
     expect(calledWith('signIn')[0].email).toBe('a@b.com')
+  })
+
+  it('tells Supabase where to send the confirmation link back to', async () => {
+    // Without this the link is built from the project's Site URL, which
+    // defaults to http://localhost:3000 — so every confirmation email points
+    // at a machine the recipient isn't using.
+    await api.signUp('a@b.com', 'pw123456')
+    const redirect = calledWith('signUp')[0].options.emailRedirectTo
+    expect(redirect).toBe(api.appUrl())
+    expect(redirect).toMatch(/^https?:\/\//)
   })
 
   it('surfaces an auth error rather than swallowing it', async () => {

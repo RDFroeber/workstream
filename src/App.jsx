@@ -77,7 +77,6 @@ export default function App() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   const effectiveLayout = isWide ? layout : 'list'
-  const shellWidth = effectiveLayout === 'list' ? 'max-w-2xl' : 'max-w-7xl'
 
   // --- auth bootstrap ------------------------------------------------------
   useEffect(() => {
@@ -189,6 +188,11 @@ export default function App() {
       // row. The flush swaps it for the server's id in everything queued after.
       const localId = offline.CREATE_OPS.has(op) ? offline.newId() : null
       const next = offline.applyLocally(dataRef.current, op, args, localId)
+      // Advance the ref synchronously. The effect that syncs it from state
+      // doesn't run until after the next render, so two mutations in a row —
+      // triaging an inbox item creates a task and then deletes the item —
+      // would have had the second one read pre-first-mutation data and undo it.
+      dataRef.current = next
       applyData(next)
       offline.saveSnapshot(next)
 
@@ -251,25 +255,35 @@ export default function App() {
   }, [session, flush])
 
   // --- reminders --------------------------------------------------------------
+  // The check reads current data through a ref rather than through the effect's
+  // dependencies. Depending on the data directly tore down and rebuilt the
+  // interval on every edit, and ran an immediate check each time, so a busy
+  // session checked constantly instead of once a minute.
+  const reminderData = useRef({ workstreams, tasksByWorkstream })
+  useEffect(() => {
+    reminderData.current = { workstreams, tasksByWorkstream }
+  }, [workstreams, tasksByWorkstream])
+
   useEffect(() => {
     if (!session) return
     const tick = () => {
       try {
-        runCheck({ workstreams, tasksByWorkstream, prefs: getPrefs() })
+        const { workstreams: ws, tasksByWorkstream: tbw } = reminderData.current
+        runCheck({ workstreams: ws, tasksByWorkstream: tbw, prefs: getPrefs() })
       } catch {
         /* a failed reminder must never take the app down */
       }
     }
     tick()
     const id = setInterval(tick, 60_000)
-    // Re-check on focus, which is the realistic moment a backgrounded app
-    // catches up on anything it slept through.
+    // Re-check on focus, the realistic moment a backgrounded app catches up on
+    // anything it slept through.
     window.addEventListener('focus', tick)
     return () => {
       clearInterval(id)
       window.removeEventListener('focus', tick)
     }
-  }, [session, workstreams, tasksByWorkstream])
+  }, [session])
 
   // --- actions ---------------------------------------------------------------
   async function handleSaveWorkstream(patch) {

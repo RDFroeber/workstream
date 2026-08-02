@@ -21,6 +21,19 @@ host, syncs across devices, and it's yours to change.
 - **Inbox** — a frictionless capture bucket. The floating "Quick capture" button is always
   on screen; anything you jot down lands here until you send it to a line.
 
+## Updating a deployed copy
+
+The service worker uses `registerType: 'autoUpdate'`, so a new build takes over
+on the next load. This matters more than it sounds: with the plugin's default
+(`'prompt'`) the new worker calls `skipWaiting()` only when it receives a message
+from `updateSW()`, which you raise from an `onNeedRefresh` handler. Without that
+handler the new worker installs, waits, and never activates — every visitor stays
+pinned to whichever build they first loaded, and no deploy ever reaches anyone.
+
+If you're testing a deploy and still seeing an old build, that's the thing to
+check first. A hard reload, or unregistering the worker in devtools, clears a
+copy stuck from before this was fixed.
+
 ## Offline
 
 The app keeps working with no connection, in two separate ways.
@@ -286,6 +299,17 @@ Row-level security means every row is only ever visible to the account that crea
 4. Go to **Authentication → Providers** and make sure Email is enabled (it is by default).
    Optional: under **Authentication → Settings**, turn off "Confirm email" if you don't want
    the email-confirmation step for a single-user app.
+5. **If you leave email confirmation on, set your URLs** under **Authentication → URL
+   Configuration**, or the confirmation links will point at `http://localhost:3000`:
+   - **Site URL** — where the app really lives, e.g.
+     `https://yourname.github.io/workstream/`
+   - **Redirect URLs** — add the same URL, plus `http://localhost:5173/` for local
+     development. Supabase only honours a redirect that appears in this allow list; anything
+     else silently falls back to the Site URL.
+
+   The app already asks for a redirect back to whatever address it's being served from, so
+   once both URLs are listed, confirmation works from local dev and from the deployed copy
+   without further changes.
 
 ## 2. Run it locally
 
@@ -315,10 +339,17 @@ GitHub Pages only serves static files, so your Supabase keys get baked into the 
 build time (this is fine — the anon key is meant to be public; row-level security is what
 actually protects your data).
 
-1. `npm install -D gh-pages`
-2. Add to `package.json` scripts: `"deploy": "npm run build && gh-pages -d dist"`
-3. `.env` needs to exist locally with your real values before you build.
-4. Run `npm run deploy`. Enable Pages for the `gh-pages` branch in your repo settings.
+`gh-pages` and the `deploy` script are already set up, so:
+
+1. Make sure `.env` exists locally with your real values — the build inlines them.
+2. `npm run deploy`
+3. Enable Pages for the `gh-pages` branch in your repo settings.
+
+A note on paths: Vite ignores the `homepage` field — that's a Create React App
+convention. What actually matters is `base: './'` in `vite.config.js`, which makes every
+asset path relative. That's why this works from a project subpath like `/workstream/`
+without hard-coding the repo name, and why the manifest's `start_url` and `scope`, and the
+service worker's scope, all resolve correctly under it too.
 
 Either way, install it to your phone's home screen from the browser's "Add to Home Screen"
 / "Install app" option for an app-like icon — it's a normal web app, so this works on both
@@ -345,9 +376,8 @@ npm test          # run once
 npm run coverage  # with a coverage report
 ```
 
-392 tests, at 89% statement and 86% branch coverage. Every module that isn't
-pure UI chrome sits above 85%; `src/lib` — where the logic that can silently
-lose data lives — is at 92%.
+449 tests, at 92% statement and 89% branch coverage. `src/lib` — where the logic
+that can silently lose data lives — is at 92%, and the API layer at 99%.
 
 What deliberately isn't covered, and why:
 

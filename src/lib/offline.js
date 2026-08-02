@@ -113,6 +113,37 @@ export function outboxCount() {
   return getOutbox().length
 }
 
+/** A write that will never succeed, however many times it's retried.
+ *
+ * Supabase doesn't raise HTTP-shaped errors: a PostgrestError carries `code` as
+ * a string — a Postgres SQLSTATE like '23505', or a PostgREST code like
+ * 'PGRST116' — and no numeric status at all. Checking only for a 4xx status
+ * therefore classified every real rejection as transient, so one constraint
+ * violation would wedge the queue forever and every later edit would pile up
+ * behind it.
+ */
+export function isPermanentFailure(err) {
+  const status = err?.status
+  if (typeof status === 'number') {
+    // 408 and 429 are worth retrying; the rest of the 4xx range is not.
+    if (status === 408 || status === 429) return false
+    return status >= 400 && status < 500
+  }
+  const code = err?.code
+  if (typeof code === 'string') {
+    if (code.startsWith('PGRST')) return true
+    // SQLSTATE classes: 22 data exception, 23 integrity constraint violation,
+    // 42 syntax error or access rule violation. All are bad requests, not
+    // temporary outages.
+    if (/^(22|23|42)/.test(code)) return true
+  }
+  return false
+}
+
+/** After this many transient failures a write is abandoned rather than retried
+ *  indefinitely, so an unrecognised error can't stall the queue for good. */
+export const MAX_ATTEMPTS = 5
+
 /**
  * Replay queued writes oldest-first against `handlers`.
  *
@@ -147,14 +178,24 @@ export async function flushOutbox(handlers) {
       sent++
     } catch (err) {
       if (!isOnline()) break // connection dropped again; keep the rest queued
-      const status = err?.status ?? err?.code
-      const permanent = typeof status === 'number' && status >= 400 && status < 500
-      if (permanent) {
+      if (isPermanentFailure(err)) {
         dequeue(item.id)
         failed.push({ item, reason: err?.message || 'rejected' })
-      } else {
-        break // transient — try the whole tail again next time
+        continue
       }
+      // Transient. Count the attempt, and give up on it eventually rather than
+      // letting one unrecognised error stall everything queued behind it.
+      const attempts = (item.attempts || 0) + 1
+      if (attempts >= MAX_ATTEMPTS) {
+        dequeue(item.id)
+        failed.push({ item, reason: err?.message || 'gave up after repeated failures' })
+        continue
+      }
+      write(
+        OUTBOX_KEY,
+        getOutbox().map((o) => (o.id === item.id ? { ...o, attempts } : o))
+      )
+      break // try the whole tail again next time
     }
   }
 

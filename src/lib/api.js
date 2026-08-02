@@ -4,8 +4,26 @@ import { supabase } from './supabaseClient'
 // Auth
 // ---------------------------------------------------------------------------
 
+/**
+ * Where this copy of the app actually lives, as an absolute URL.
+ *
+ * Uses the directory of the current page rather than just the origin, so a
+ * project subpath like /workstream/ is preserved. Confirmation links are built
+ * from this — without it Supabase falls back to the project's Site URL, which
+ * defaults to http://localhost:3000, and every confirmation email points at a
+ * machine the recipient isn't using.
+ */
+export function appUrl() {
+  if (typeof window === 'undefined') return undefined
+  return new URL('.', window.location.href).href
+}
+
 export async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: appUrl() },
+  })
   if (error) throw error
   return data
 }

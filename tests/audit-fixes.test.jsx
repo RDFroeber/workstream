@@ -181,8 +181,32 @@ describe('header is one width across every layout', () => {
     expect(app).not.toContain('shellWidth')
   })
 
-  it('keeps the outer groups from being squeezed', () => {
-    expect(header).toContain('shrink-0')
+  it('centres the nav independently of what sits either side', () => {
+    // justify-between only centres the middle item when the outer groups are
+    // the same width, so anything added to one side drags the nav sideways.
+    expect(header).toContain('grid-cols-[1fr_auto_1fr]')
+    expect(header).toContain('justify-self-center')
+    // Only className attributes count — the word appears in the comment
+    // explaining why it isn't used.
+    const classNames = [...header.matchAll(/className="([^"]*)"/g)].map((m) => m[1])
+    expect(classNames.some((c) => c.includes('justify-between'))).toBe(false)
+  })
+
+  it('renders the same thing on every tab', () => {
+    // The layout switcher used to live here and only on the dashboard, so the
+    // right-hand group changed width between tabs and moved the nav with it.
+    // Nothing in the bar may depend on the current view.
+    expect(header).not.toContain('LayoutSwitcher')
+    expect(header).not.toMatch(/view === '/)
+    expect(header).not.toMatch(/activeWorkstreamId \?\?|activeWorkstreamId &&/)
+  })
+
+  it('puts the layout switcher with the thing it controls', () => {
+    const dash = fs.readFileSync(
+      path.join(process.cwd(), 'src', 'components', 'DashboardView.jsx'),
+      'utf8'
+    )
+    expect(dash).toContain('LayoutSwitcher')
   })
 })
 

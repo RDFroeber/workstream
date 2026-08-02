@@ -3,6 +3,7 @@ import { summarizeWorkstream } from '../lib/api'
 import { isRecurring } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
+import LayoutSwitcher from './LayoutSwitcher'
 import { useLineColor } from '../lib/theme'
 import { lineFill } from '../lib/lineStyle'
 
@@ -13,6 +14,8 @@ export function DashboardHeader({
   archivedCount = 0,
   showArchived = false,
   onToggleArchived,
+  layout,
+  onLayoutChange,
 }) {
   const attention = workstreams.filter(
     (w) => w.status === 'at_risk' || w.status === 'blocked'
@@ -36,12 +39,15 @@ export function DashboardHeader({
           </button>
         )}
       </div>
-      <button
-        onClick={onNewWorkstream}
-        className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity shrink-0"
-      >
-        <Plus size={16} /> New line
-      </button>
+      <div className="flex items-center gap-2 shrink-0">
+        {onLayoutChange && <LayoutSwitcher value={layout} onChange={onLayoutChange} />}
+        <button
+          onClick={onNewWorkstream}
+          className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity shrink-0"
+        >
+          <Plus size={16} /> New line
+        </button>
+      </div>
     </div>
   )
 }
@@ -57,6 +63,8 @@ export default function DashboardView({
   archivedCount = 0,
   showArchived = false,
   onToggleArchived,
+  layout,
+  onLayoutChange,
 }) {
   const lineColor = useLineColor()
 
@@ -68,6 +76,8 @@ export default function DashboardView({
         archivedCount={archivedCount}
         showArchived={showArchived}
         onToggleArchived={onToggleArchived}
+        layout={layout}
+        onLayoutChange={onLayoutChange}
       />
 
       {workstreams.length === 0 ? (

@@ -95,6 +95,19 @@ all of this rather than letting you find out by missing something.
 
 ## Layouts
 
+The header is deliberately identical on every tab: logo, the three sections, and
+the theme/settings/sign-out controls. Nothing in it depends on which view you're
+looking at, and it's laid out as a three-column grid so the nav sits in the
+centre regardless of what the outer groups contain. `justify-between` only
+centres the middle item when the two outer groups happen to be the same width,
+which is why the layout switcher living in the bar made the nav slide sideways
+between tabs.
+
+The switcher itself sits on the dashboard, next to "New line" — beside the thing
+it controls, and only on the page where it applies.
+
+### The views
+
 On a phone the stacked list is the whole story. From tablet width up, a switcher
 in the header offers three more ways to see the same lines — the choice is
 remembered, and it always collapses back to the list below 768px regardless of
@@ -397,7 +410,7 @@ npm test          # run once
 npm run coverage  # with a coverage report
 ```
 
-521 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
+523 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
 that can silently lose data lives — is at 92%, and the API layer at 99%.
 
 What deliberately isn't covered, and why:

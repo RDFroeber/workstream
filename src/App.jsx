@@ -17,7 +17,6 @@ import OfflineBanner from './components/OfflineBanner'
 import SettingsPanel from './components/SettingsPanel'
 import * as offline from './lib/offline'
 import { runCheck, getPrefs } from './lib/notifications'
-import LayoutSwitcher from './components/LayoutSwitcher'
 import GridLayout from './components/GridLayout'
 import TimelineLayout from './components/TimelineLayout'
 import SplitLayout from './components/SplitLayout'
@@ -452,12 +451,17 @@ export default function App() {
             Inheriting the body's max-w-2xl in List view left the header ~250px
             short of what its own contents need, and the flex children silently
             overlapped instead of wrapping. */}
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 shrink-0">
+        {/* Three columns rather than justify-between. With justify-between the
+            middle item only lands in the centre when the two outer groups
+            happen to be the same width, so anything added to either side drags
+            the nav sideways. A fixed centre column makes the nav's position
+            independent of its neighbours. */}
+        <div className="max-w-7xl mx-auto px-4 h-14 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="flex items-center gap-2 justify-self-start">
             <Waypoints size={18} className="text-accent" strokeWidth={2.2} />
             <span className="hidden sm:inline font-display font-semibold text-ink">Lines</span>
           </div>
-          <div className="hidden sm:block min-w-0">
+          <div className="hidden sm:block justify-self-center">
             <Nav
               active={activeWorkstreamId ? null : view}
               onChange={(v) => {
@@ -467,10 +471,11 @@ export default function App() {
               inboxCount={inbox.length}
             />
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {!activeWorkstreamId && view === 'dashboard' && (
-              <LayoutSwitcher value={layout} onChange={setLayout} />
-            )}
+          {/* Nothing here is conditional. The layout switcher used to sit in
+              this group and only on the dashboard, so its width changed between
+              tabs and justify-between shifted the centred nav with it. It now
+              lives on the dashboard, next to what it controls. */}
+          <div className="flex items-center gap-2 justify-self-end">
             <ThemeToggle />
             <button
               onClick={() => setShowSettings(true)}
@@ -523,6 +528,8 @@ export default function App() {
         ) : view === 'dashboard' ? (
           effectiveLayout === 'list' ? (
             <DashboardView
+              layout={layout}
+              onLayoutChange={setLayout}
               workstreams={dashboardWorkstreams}
               archivedCount={archivedCount}
               showArchived={showArchived}
@@ -537,6 +544,8 @@ export default function App() {
           ) : (
             <div className="max-w-7xl mx-auto px-4 pb-28 pt-5">
               <DashboardHeader
+                layout={layout}
+                onLayoutChange={setLayout}
                 workstreams={dashboardWorkstreams}
                 onNewWorkstream={() => setEditingWorkstream('new')}
                 archivedCount={archivedCount}

@@ -185,3 +185,28 @@ describe('header is one width across every layout', () => {
     expect(header).toContain('shrink-0')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Notification delivery
+// ---------------------------------------------------------------------------
+
+describe('notification delivery does not hang', () => {
+  const src = fs.readFileSync(path.join(process.cwd(), 'src', 'lib', 'notifications.js'), 'utf8')
+
+  it('does not await a promise that may never settle', () => {
+    // navigator.serviceWorker.ready never resolves *or* rejects when nothing is
+    // registered, so the old code produced no notification and no fallback —
+    // in dev, and on any load before the worker activates.
+    expect(src).toContain('navigator.serviceWorker?.controller')
+    expect(src).toContain('Promise.race')
+  })
+
+  it('falls back to the plain constructor', () => {
+    expect(src).toMatch(/new Notification\(title, options\)/)
+  })
+
+  it('tolerates Safari refusing the constructor outside a worker', () => {
+    const fallback = src.slice(src.indexOf('Promise.race'), src.indexOf('return true'))
+    expect(fallback).toContain('catch')
+  })
+})

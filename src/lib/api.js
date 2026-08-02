@@ -56,6 +56,27 @@ export async function requestPasswordReset(email) {
   if (error) throw error
 }
 
+/**
+ * Sign in with Apple.
+ *
+ * Chosen over Google deliberately: guideline 4.8 only triggers on a
+ * third-party/social login, and Sign in with Apple is the option that satisfies
+ * it rather than one that creates the obligation. See docs/app-store.md.
+ *
+ * On the web this is a full-page redirect through Apple and back to appUrl(),
+ * which is why email and password stays the primary path — a redirect out of an
+ * installed iOS PWA can fail to return to the app's context. A native wrapper
+ * would use the system sheet instead and avoid that entirely.
+ */
+export async function signInWithApple() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'apple',
+    options: { redirectTo: appUrl() },
+  })
+  if (error) throw error
+  return data
+}
+
 /** Sets a new password for the signed-in (or recovery-session) user. */
 export async function updatePassword(password) {
   const { data, error } = await supabase.auth.updateUser({ password })
@@ -420,7 +441,15 @@ export function summarizeWorkstream(tasks) {
   // incomplete step of the earliest-sort sequence — whichever is due sooner.
   const candidates = tree
     .filter((i) => i.status !== 'done')
-    .map((i) => (i.item_type === 'sequence' ? i.nextStep || i : i))
+    .map((i) => {
+      if (i.item_type !== 'sequence') return i
+      if (i.nextStep) return i.nextStep
+      // Every step done means there is nothing left to do, so the sequence
+      // shouldn't keep presenting itself as the next action — the line would
+      // never read "all caught up". An empty sequence is different: adding its
+      // first step genuinely is the next action.
+      return i.steps.length === 0 ? i : null
+    })
     .filter(Boolean)
 
   candidates.sort((a, b) => {

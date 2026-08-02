@@ -17,6 +17,21 @@ import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { useLineColor } from '../lib/theme'
 import { lineFill } from '../lib/lineStyle'
 
+/**
+ * Fresh 0..n-1 ordering for the open items, with the completed ones appended
+ * after them. Extracted from the drop handler so it can be tested: dnd-kit's
+ * gesture needs real pointer events, which jsdom doesn't have.
+ *
+ * Done items have to be renumbered too. Leaving their old values in place lets
+ * a completed task keep a sort_order that collides with an open one, and the
+ * next drop then produces an ambiguous order.
+ */
+export function buildReorderUpdates(openItems, doneItems = []) {
+  const updates = openItems.map((t, i) => ({ id: t.id, sort_order: i }))
+  doneItems.forEach((t, i) => updates.push({ id: t.id, sort_order: openItems.length + i }))
+  return updates
+}
+
 export default function WorkstreamView({
   workstream,
   tasks,
@@ -40,12 +55,8 @@ export default function WorkstreamView({
   const openItems = tree.filter((t) => t.status !== 'done')
   const doneItems = tree.filter((t) => t.status === 'done')
 
-  // Persist a fresh 0..n-1 run for the open items, then append the done ones so
-  // their ordering stays stable underneath.
   function handleReorder(reordered) {
-    const updates = reordered.map((t, i) => ({ id: t.id, sort_order: i }))
-    doneItems.forEach((t, i) => updates.push({ id: t.id, sort_order: reordered.length + i }))
-    onReorderTasks(updates)
+    onReorderTasks(buildReorderUpdates(reordered, doneItems))
   }
 
   function submitDraft(e) {

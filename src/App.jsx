@@ -47,6 +47,7 @@ export default function App() {
   const [syncError, setSyncError] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [recovering, setRecovering] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
   // Desktop layout choice. Persisted, but only ever applied at md and above —
   // the stacked list is the right answer on a phone regardless of what's saved.
   const [layout, setLayoutState] = useState(() => {
@@ -168,6 +169,17 @@ export default function App() {
     }
     return map
   }, [tasks])
+
+  // Archived lines are already skipped by Today and by reminders; the overview
+  // was the one place they still counted, so archiving a line half-worked.
+  const archivedCount = useMemo(
+    () => workstreams.filter((w) => w.status === 'archived').length,
+    [workstreams]
+  )
+  const dashboardWorkstreams = useMemo(
+    () => (showArchived ? workstreams : workstreams.filter((w) => w.status !== 'archived')),
+    [workstreams, showArchived]
+  )
 
   const activeWorkstream = activeWorkstreamId ? workstreamsById[activeWorkstreamId] : null
   const openTask = openTaskId ? tasksById[openTaskId] : null
@@ -511,7 +523,10 @@ export default function App() {
         ) : view === 'dashboard' ? (
           effectiveLayout === 'list' ? (
             <DashboardView
-              workstreams={workstreams}
+              workstreams={dashboardWorkstreams}
+              archivedCount={archivedCount}
+              showArchived={showArchived}
+              onToggleArchived={() => setShowArchived((v) => !v)}
               tasksByWorkstream={tasksByWorkstream}
               dependencies={dependencies}
               tasksById={tasksById}
@@ -522,12 +537,15 @@ export default function App() {
           ) : (
             <div className="max-w-7xl mx-auto px-4 pb-28 pt-5">
               <DashboardHeader
-                workstreams={workstreams}
+                workstreams={dashboardWorkstreams}
                 onNewWorkstream={() => setEditingWorkstream('new')}
+                archivedCount={archivedCount}
+                showArchived={showArchived}
+                onToggleArchived={() => setShowArchived((v) => !v)}
               />
               {effectiveLayout === 'grid' && (
                 <GridLayout
-                  workstreams={workstreams}
+                  workstreams={dashboardWorkstreams}
                   tasksByWorkstream={tasksByWorkstream}
                   dependencies={dependencies}
                   tasksById={tasksById}
@@ -538,7 +556,7 @@ export default function App() {
               )}
               {effectiveLayout === 'timeline' && (
                 <TimelineLayout
-                  workstreams={workstreams}
+                  workstreams={dashboardWorkstreams}
                   tasksByWorkstream={tasksByWorkstream}
                   onOpen={openWorkstream}
                   onOpenTask={openTaskDetail}
@@ -546,7 +564,7 @@ export default function App() {
               )}
               {effectiveLayout === 'split' && (
                 <SplitLayout
-                  workstreams={workstreams}
+                  workstreams={dashboardWorkstreams}
                   tasksByWorkstream={tasksByWorkstream}
                   dependencies={dependencies}
                   tasksById={tasksById}

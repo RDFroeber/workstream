@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   requestPasswordReset: vi.fn(),
   updatePassword: vi.fn(),
+  signInWithApple: vi.fn(),
 }))
 
 vi.mock('../src/lib/api', async (orig) => ({ ...(await orig()), ...mocks }))
@@ -167,5 +168,66 @@ describe('setting the new password', () => {
       expect(screen.getByRole('button', { name: 'Saving…' }).disabled).toBe(true)
     )
     await act(async () => release({}))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Sign in with Apple
+// ---------------------------------------------------------------------------
+
+describe('Sign in with Apple', () => {
+  it('is offered on both sign-in and sign-up', () => {
+    render(<Auth />)
+    expect(screen.getByRole('button', { name: /Sign in with Apple/ })).toBeTruthy()
+    fireEvent.click(screen.getByText(/Don't have an account/))
+    expect(screen.getByRole('button', { name: /Sign up with Apple/ })).toBeTruthy()
+  })
+
+  it('starts the Apple flow', async () => {
+    render(<Auth />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sign in with Apple/ }))
+    })
+    expect(mocks.signInWithApple).toHaveBeenCalled()
+  })
+
+  it('does not also try to sign in with a password', async () => {
+    render(<Auth />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sign in with Apple/ }))
+    })
+    expect(mocks.signIn).not.toHaveBeenCalled()
+  })
+
+  it('points back to email and password when Apple is unreachable', async () => {
+    mocks.signInWithApple.mockRejectedValue(new Error('provider is not enabled'))
+    render(<Auth />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sign in with Apple/ }))
+    })
+    expect(await screen.findByText('provider is not enabled')).toBeTruthy()
+    // The form is still usable — a broken provider must not lock anyone out.
+    expect(screen.getByLabelText('Password')).toBeTruthy()
+  })
+
+  it('re-enables the button after a failure, since no redirect happened', async () => {
+    mocks.signInWithApple.mockRejectedValue(new Error('nope'))
+    render(<Auth />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sign in with Apple/ }))
+    })
+    expect(screen.getByRole('button', { name: /Sign in with Apple/ }).disabled).toBe(false)
+  })
+
+  it('is not shown on the reset screen, where it makes no sense', () => {
+    render(<Auth />)
+    fireEvent.click(screen.getByText('Forgot your password?'))
+    expect(screen.queryByRole('button', { name: /with Apple/ })).toBeNull()
+  })
+
+  it('carries Apple own mark, as their guidelines require', () => {
+    const { container } = render(<Auth />)
+    const button = screen.getByRole('button', { name: /Sign in with Apple/ })
+    expect(button.querySelector('svg')).toBeTruthy()
   })
 })

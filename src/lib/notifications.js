@@ -107,7 +107,16 @@ export function dueItems(workstreams, tasksByWorkstream, today = todayISO()) {
     if (ws.status === 'archived') continue
     const tree = buildWorkstreamTree(tasksByWorkstream[ws.id] || [])
     for (const node of tree) {
-      const item = node.item_type === 'sequence' ? node.nextStep : node
+      let item
+      if (node.item_type === 'sequence') {
+        // Fall back to the sequence itself when the current step carries no
+        // date. A recurring checklist keeps its date on the container and
+        // leaves the steps undated, so keying only off the step meant those
+        // never produced a reminder at all.
+        item = node.nextStep?.due_date ? node.nextStep : node.due_date ? node : null
+      } else {
+        item = node
+      }
       if (!item || item.status === 'done' || !item.due_date) continue
       if (item.due_date < today) overdue.push({ item, ws })
       else if (item.due_date === today) dueToday.push({ item, ws })
@@ -117,16 +126,32 @@ export function dueItems(workstreams, tasksByWorkstream, today = todayISO()) {
 }
 
 function show(title, body, tag) {
+  const options = { body, tag, icon: './icon-192.png', badge: './icon-192.png' }
   try {
-    // Through the service worker when possible, so the notification survives
-    // the page being backgrounded.
-    if (navigator.serviceWorker?.ready) {
-      navigator.serviceWorker.ready
-        .then((reg) => reg.showNotification(title, { body, tag, icon: './icon-192.png', badge: './icon-192.png' }))
-        .catch(() => new Notification(title, { body, tag }))
+    // Prefer the service worker: a notification raised through it survives the
+    // page being backgrounded, and on iOS it's the only way that works.
+    //
+    // `serviceWorker.ready` never settles when nothing is registered — not
+    // resolved, not rejected — so awaiting it directly meant no notification
+    // and no fallback at all in dev, or on any load before the worker
+    // activates. Racing it against a short timer keeps that from swallowing
+    // the reminder silently.
+    if (navigator.serviceWorker?.controller) {
+      Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('no worker')), 1500)),
+      ])
+        .then((reg) => reg.showNotification(title, options))
+        .catch(() => {
+          try {
+            new Notification(title, options)
+          } catch {
+            /* Safari refuses the constructor outside a worker; nothing else to try */
+          }
+        })
       return true
     }
-    new Notification(title, { body, tag, icon: './icon-192.png' })
+    new Notification(title, options)
     return true
   } catch {
     return false

@@ -37,8 +37,10 @@ directory this copy of the app is served from — so they work from local dev an
 the deployed copy alike, provided both are in the Supabase **Redirect URLs**
 allow list.
 
-There's no Google or other social sign-in, deliberately. See
-`docs/app-store.md` for why that interacts badly with App Store review.
+Sign in with Apple is offered as a second option. There's deliberately no Google
+sign-in: guideline 4.8 only triggers on a third-party or social login, and Sign
+in with Apple is the option that *satisfies* it rather than one that creates the
+obligation. See `docs/app-store.md`.
 
 ## Updating a deployed copy
 
@@ -395,7 +397,7 @@ npm test          # run once
 npm run coverage  # with a coverage report
 ```
 
-475 tests, at 93% statement and 90% branch coverage. `src/lib` — where the logic
+521 tests, at 93% statement and 91% branch coverage. `src/lib` — where the logic
 that can silently lose data lives — is at 92%, and the API layer at 99%.
 
 What deliberately isn't covered, and why:

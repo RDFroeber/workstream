@@ -1,4 +1,4 @@
-import { Plus, Link2, ChevronRight, Waypoints, Repeat } from 'lucide-react'
+import { Plus, Link2, ChevronRight, Waypoints, Repeat, Archive } from 'lucide-react'
 import { summarizeWorkstream } from '../lib/api'
 import { isRecurring } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
@@ -6,23 +6,39 @@ import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { useLineColor } from '../lib/theme'
 import { lineFill } from '../lib/lineStyle'
 
-/** Title, line count and the "New line" button — shared by every layout. */
-export function DashboardHeader({ workstreams, onNewWorkstream }) {
+/** Title, line count and the "New line" button — the single header every layout uses. */
+export function DashboardHeader({
+  workstreams,
+  onNewWorkstream,
+  archivedCount = 0,
+  showArchived = false,
+  onToggleArchived,
+}) {
   const attention = workstreams.filter(
     (w) => w.status === 'at_risk' || w.status === 'blocked'
   ).length
   return (
-    <div className="flex items-start justify-between mb-6">
-      <div>
+    <div className="flex items-start justify-between mb-6 gap-3">
+      <div className="min-w-0">
         <h1 className="font-display font-semibold text-2xl text-ink tracking-tight">System map</h1>
         <p className="text-sm text-muted mt-0.5">
           {workstreams.length} {workstreams.length === 1 ? 'line' : 'lines'}
           {attention > 0 && <span className="text-warn"> · {attention} need attention</span>}
         </p>
+        {archivedCount > 0 && onToggleArchived && (
+          <button
+            onClick={onToggleArchived}
+            aria-pressed={showArchived}
+            className="inline-flex items-center gap-1 text-xs text-faint hover:text-muted mt-1 transition-colors"
+          >
+            <Archive size={11} />
+            {showArchived ? 'Hide' : 'Show'} {archivedCount} archived
+          </button>
+        )}
       </div>
       <button
         onClick={onNewWorkstream}
-        className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity"
+        className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity shrink-0"
       >
         <Plus size={16} /> New line
       </button>
@@ -38,29 +54,21 @@ export default function DashboardView({
   onOpen,
   onNewWorkstream,
   onReorder,
+  archivedCount = 0,
+  showArchived = false,
+  onToggleArchived,
 }) {
   const lineColor = useLineColor()
-  const attentionCount = workstreams.filter((w) => w.status === 'at_risk' || w.status === 'blocked').length
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-28 pt-5">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="font-display font-semibold text-2xl text-ink tracking-tight">System map</h1>
-          <p className="text-sm text-muted mt-0.5">
-            {workstreams.length} {workstreams.length === 1 ? 'line' : 'lines'}
-            {attentionCount > 0 && (
-              <span className="text-warn"> · {attentionCount} need attention</span>
-            )}
-          </p>
-        </div>
-        <button
-          onClick={onNewWorkstream}
-          className="inline-flex items-center gap-1.5 text-sm font-medium bg-ink text-panel rounded-lg px-3 py-2 hover:opacity-90 transition-opacity"
-        >
-          <Plus size={16} /> New line
-        </button>
-      </div>
+      <DashboardHeader
+        workstreams={workstreams}
+        onNewWorkstream={onNewWorkstream}
+        archivedCount={archivedCount}
+        showArchived={showArchived}
+        onToggleArchived={onToggleArchived}
+      />
 
       {workstreams.length === 0 ? (
         <EmptyState onNewWorkstream={onNewWorkstream} />

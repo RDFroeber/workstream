@@ -12,7 +12,7 @@ export default defineConfig({
       // main.jsx is bootstrap wiring, supabaseClient is a thin env-var shim,
       // and neither can run meaningfully outside a browser.
       exclude: ['src/main.jsx', 'src/lib/supabaseClient.js'],
-      reporter: ['text', 'json-summary'],
+      reporter: ['text', 'json-summary', 'json'],
     },
   },
 })

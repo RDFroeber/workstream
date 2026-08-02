@@ -39,6 +39,19 @@ is the better choice than Google**:
 - It needs the Apple Developer account you'd be paying for anyway.
 - Supabase supports it as a provider, so the app-side change is small.
 
+## What's implemented
+
+Sign in with Apple is wired up (`signInWithApple` in `src/lib/api.js`, the button
+in `Auth.jsx`). On the web it's a redirect through Apple and back to `appUrl()`,
+which is why email and password remains the primary path — a redirect out of an
+installed iOS PWA can fail to return to the app's context. A native wrapper
+would use the system sheet and avoid that.
+
+Supabase setup: Apple Developer account → Services ID, a Sign in with Apple key,
+and the return URL pointing at `https://<project-ref>.supabase.co/auth/v1/callback`.
+Then enable the Apple provider in Supabase with the Services ID and key. The app
+side needs no further change.
+
 ## Also required before submitting
 
 - **Guideline 5.1.1(v) — account deletion.** Any app that supports account

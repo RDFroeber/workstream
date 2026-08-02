@@ -21,6 +21,44 @@ host, syncs across devices, and it's yours to change.
 - **Inbox** — a frictionless capture bucket. The floating "Quick capture" button is always
   on screen; anything you jot down lands here until you send it to a line.
 
+## Offline
+
+The app keeps working with no connection, in two separate ways.
+
+**Reads.** A service worker precaches the shell, so opening Lines offline shows
+the app rather than the browser's error page. Every successful load is also kept
+as a snapshot in `localStorage`, so your lines are there — with a banner saying
+how stale the data is, rather than pretending it's live. Supabase requests are
+explicitly `NetworkOnly`: caching API responses would mean serving stale task
+data that *looks* current, which is worse than an honest error.
+
+**Writes.** Edits made offline are applied to the local data immediately and
+queued in a durable outbox, then replayed in order when the connection returns.
+Order is enforced — a task created offline and then renamed has to be created
+first — so a failure stops the queue rather than skipping ahead. A write the
+server permanently rejects (a 4xx) is dropped and reported instead of wedging
+the queue forever; a transient failure leaves everything queued for the next
+attempt.
+
+Not solved: multi-device conflict resolution. This is a single-user app and the
+server is last-write-wins, so two devices editing the same task offline resolve
+to whichever syncs last.
+
+## Reminders
+
+Opt-in, in Settings: a daily summary at a time you choose of what's overdue or
+due today, and optionally a nudge per task. Reminders fire once per task per day
+— the loop ticks every minute, so without that the summary would fire sixty
+times an hour.
+
+**These are local notifications, not push.** There's no server, so Lines can
+only raise a notification while its page or service worker is alive: open in a
+tab, recently backgrounded, or the next time you open it. It will not reach you
+if the app has been closed for two days. That needs Web Push with a VAPID
+server, which is separate infrastructure this app doesn't run. Installing to
+your home screen makes them noticeably more reliable. The settings panel says
+all of this rather than letting you find out by missing something.
+
 ## Layouts
 
 On a phone the stacked list is the whole story. From tablet width up, a switcher
@@ -170,6 +208,24 @@ and drops the coloured accent node, which rasterises lighter than the white ones
 at that size and reads as a fault. Tests assert the topology and stroke weight
 so a future edit can't quietly turn it back into a blob.
 
+## Related links
+
+Any two tasks can be linked as related — across lines or within one. This is
+deliberately *not* a dependency: a link carries no scheduling meaning, doesn't
+block anything, and never shows up as a red flag on the dashboard. It exists so
+that "the vendor contract" and "the budget sign-off" can point at each other
+without one pretending to gate the other.
+
+Links are undirected, and stored that way: rows go into `task_links` with the
+lower uuid first, under a unique constraint, so linking A to B and later B to A
+can't produce two rows describing the same relationship. Both ends see the link;
+already-linked tasks are filtered out of the picker rather than being offered
+and then rejected by the database.
+
+Visually they stay quiet — a plain chain icon and a count on the task row, no
+colour. Blockers keep the red styling to themselves, because a warning that
+appears for non-warnings stops working.
+
 ## Reordering
 
 Everything orderable is drag-and-drop: workstreams on the dashboard, tasks within a
@@ -194,8 +250,10 @@ Four tables, all in `supabase/schema.sql`:
   tasks don't" work without two separate systems. Repeat rules live on the same row
   (`recurrence_unit`, `recurrence_interval`, `recurrence_days`, `recurrence_anchor`); a null
   `recurrence_unit` simply means it doesn't repeat.
-- `dependencies` — a row means "this task is blocked by that task." Usually links tasks
-  across two different workstreams.
+- `dependencies` — a row means "this task is blocked by that task." Directed, and
+  usually links tasks across two different workstreams.
+- `task_links` — a row means "these two are related." Undirected and non-blocking,
+  stored in a canonical order so a pair can only exist once.
 - `inbox_items` — quick-capture, not yet assigned to a line.
 
 Row-level security means every row is only ever visible to the account that created it.
@@ -208,7 +266,7 @@ Row-level security means every row is only ever visible to the account that crea
    row-level security.
 
    *Already ran an earlier version of `schema.sql`?* Run
-   `supabase/migration-002-recurring.sql` instead — it adds just the recurrence columns to
+   `supabase/migration-002-recurring.sql` and `supabase/migration-003-task-links.sql` instead — it adds just the recurrence columns to
    your existing `tasks` table without touching your data.
 3. Go to **Project Settings → API**. You'll need the **Project URL** and the **anon public**
    key in the next step.
@@ -273,7 +331,7 @@ iOS and Android without an app store.
 npm test
 ```
 
-128 tests, and the ones worth knowing about:
+180 tests, and the ones worth knowing about:
 
 - **Recurrence date math** — month-end clamping (Jan 31 + 1 month is Feb 28, not Mar 3),
   the schedule-vs-completion anchor distinction, biweekly rules with specific weekdays, and
@@ -286,6 +344,14 @@ npm test
 - **Dark palette** — that every dark variant is readable on the dark panel, doesn't
   glare, stays separable, and keeps its hue. Plus a guard that no component contains a
   hardcoded colour.
+- **Offline** — that the optimistic reducer mirrors what the server would do for every
+  operation, that the outbox replays in order, stops at a transient failure, and drops a
+  permanently rejected write rather than blocking forever.
+- **Reminders** — that a sequence surfaces only its current step, that nothing fires
+  before the chosen time, and that repeated ticks don't re-notify.
+- **Related links** — that a pair normalises the same way from either direction, that
+  both ends of a link can see it, and that related links don't borrow the blocker's
+  red styling.
 - **Layouts** — that the grid really does show more than one upcoming action, that the
   timeline flags a crunch day and stays quiet on a calm week, that the split view keeps a
   valid selection when a line is deleted, and that everything falls back to the list below

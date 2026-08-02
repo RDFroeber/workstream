@@ -9,12 +9,14 @@ import {
   CornerUpLeft,
   Repeat,
   RotateCcw,
+  Link,
 } from 'lucide-react'
 import Modal from './Modal'
 import { DueBadge } from './ui'
 import RecurrenceEditor from './RecurrenceEditor'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
+import { linksFor } from '../lib/api'
 import { useLineColor } from '../lib/theme'
 
 export default function TaskDetail({
@@ -34,6 +36,9 @@ export default function TaskDetail({
   onAddDependency,
   onRemoveDependency,
   onCompleteCycle,
+  taskLinks = [],
+  onAddLink,
+  onRemoveLink,
 }) {
   const lineColor = useLineColor()
   const [title, setTitle] = useState(task.title)
@@ -41,6 +46,7 @@ export default function TaskDetail({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [newStep, setNewStep] = useState('')
   const [showDepPicker, setShowDepPicker] = useState(false)
+  const [showLinkPicker, setShowLinkPicker] = useState(false)
 
   const isSequence = task.item_type === 'sequence'
   const isStep = task.item_type === 'step'
@@ -53,6 +59,8 @@ export default function TaskDetail({
     : []
   const allStepsDone = steps.length > 0 && steps.every((s) => s.status === 'done')
 
+  const related = linksFor(task.id, taskLinks)
+  const relatedIds = new Set(related.map((r) => r.otherId))
   const blockedBy = dependencies.filter((d) => d.task_id === task.id)
   const blocks = dependencies.filter((d) => d.depends_on_task_id === task.id)
 
@@ -79,6 +87,11 @@ export default function TaskDetail({
   // candidates for "blocked by": every other task except this one and (if sequence) its own steps
   const excludeIds = new Set([task.id, ...steps.map((s) => s.id)])
   const depCandidates = allTasksFlat.filter((t) => !excludeIds.has(t.id))
+  // Already-linked tasks are filtered out — offering them again would just hit
+  // the database's unique constraint.
+  const linkCandidates = allTasksFlat.filter(
+    (t) => !excludeIds.has(t.id) && !relatedIds.has(t.id)
+  )
 
   return (
     <Modal onClose={onClose} wide>
@@ -276,7 +289,7 @@ export default function TaskDetail({
         </div>
 
         {showDepPicker ? (
-          <DependencyPicker
+          <TaskPicker
             candidates={depCandidates}
             workstreamsById={workstreamsById}
             onPick={(depId) => {
@@ -311,6 +324,71 @@ export default function TaskDetail({
         )}
       </div>
 
+      {/* Related — deliberately styled flat and neutral. A relationship that
+          carries no scheduling meaning must not look like a blocker, or the
+          red-flag signal on the dashboard stops meaning anything. */}
+      <div className="mb-5">
+        <label className="block text-xs font-medium text-muted mb-2">Related</label>
+        {related.length === 0 && !showLinkPicker && (
+          <p className="text-sm text-faint mb-2">Nothing linked yet.</p>
+        )}
+        <div className="space-y-1.5 mb-2">
+          {related.map(({ link, otherId }) => {
+            const other = tasksById[otherId]
+            const otherWs = other ? workstreamsById[other.workstream_id] : null
+            return (
+              <div
+                key={link.id}
+                className="flex items-center gap-2 text-sm border border-hairline rounded-lg px-2.5 py-1.5"
+              >
+                <Link size={13} className="text-faint shrink-0" />
+                <button
+                  onClick={() => other && onNavigate(other.id)}
+                  className="flex-1 min-w-0 text-left truncate text-ink hover:underline"
+                >
+                  {other?.title || 'Unknown task'}
+                </button>
+                {otherWs && (
+                  <span className="inline-flex items-center gap-1 shrink-0 text-xs text-muted">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: lineColor(otherWs.color) }}
+                    />
+                    {otherWs.name}
+                  </span>
+                )}
+                <button
+                  onClick={() => onRemoveLink(link.id)}
+                  className="text-faint hover:text-danger shrink-0"
+                  aria-label={`Unlink ${other?.title || 'task'}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        {showLinkPicker ? (
+          <TaskPicker
+            candidates={linkCandidates}
+            workstreamsById={workstreamsById}
+            onPick={(otherId) => {
+              onAddLink(task.id, otherId)
+              setShowLinkPicker(false)
+            }}
+            onCancel={() => setShowLinkPicker(false)}
+          />
+        ) : (
+          <button
+            onClick={() => setShowLinkPicker(true)}
+            className="text-xs font-medium text-muted hover:text-ink border border-dashed border-hairlineStrong rounded-lg px-2.5 py-1.5 inline-flex items-center gap-1"
+          >
+            <Plus size={13} /> Link a related task
+          </button>
+        )}
+      </div>
+
       <div className="pt-3 border-t border-hairline">
         {confirmingDelete ? (
           <div className="flex items-center gap-2">
@@ -340,7 +418,11 @@ export default function TaskDetail({
   )
 }
 
-function DependencyPicker({ candidates, workstreamsById, onPick, onCancel }) {
+/** Shared search-and-pick list, used for both blockers and related links. */
+function TaskPicker({ candidates, workstreamsById, onPick, onCancel }) {
+  // Its own hook call — reaching for the parent's `lineColor` binding threw a
+  // ReferenceError the moment the picker opened.
+  const lineColor = useLineColor()
   const [query, setQuery] = useState('')
   const filtered = candidates.filter((t) =>
     t.title.toLowerCase().includes(query.toLowerCase())

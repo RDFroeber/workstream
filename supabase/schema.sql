@@ -59,6 +59,29 @@ create table if not exists dependencies (
 );
 
 -- ---------------------------------------------------------------------------
+-- task_links: "these two are related", undirected and non-blocking
+--
+-- Deliberately separate from `dependencies`. A dependency is directed and
+-- affects what you can start; a link is symmetric and affects nothing except
+-- what you want to see together.
+-- ---------------------------------------------------------------------------
+create table if not exists task_links (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  task_a_id uuid not null references tasks(id) on delete cascade,
+  task_b_id uuid not null references tasks(id) on delete cascade,
+  note text default '',
+  created_at timestamptz not null default now(),
+  constraint no_self_link check (task_a_id <> task_b_id),
+  -- lower uuid first, so a pair can only exist once in one direction
+  constraint canonical_order check (task_a_id < task_b_id),
+  constraint unique_pair unique (task_a_id, task_b_id)
+);
+
+create index if not exists task_links_a_idx on task_links(task_a_id);
+create index if not exists task_links_b_idx on task_links(task_b_id);
+
+-- ---------------------------------------------------------------------------
 -- inbox_items: frictionless capture, triaged into a workstream/task later
 -- ---------------------------------------------------------------------------
 create table if not exists inbox_items (
@@ -74,6 +97,7 @@ create table if not exists inbox_items (
 alter table workstreams enable row level security;
 alter table tasks enable row level security;
 alter table dependencies enable row level security;
+alter table task_links enable row level security;
 alter table inbox_items enable row level security;
 
 create policy "own workstreams" on workstreams
@@ -85,6 +109,9 @@ create policy "own tasks" on tasks
 create policy "own dependencies" on dependencies
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+create policy "own task_links" on task_links
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 create policy "own inbox_items" on inbox_items
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
@@ -94,4 +121,5 @@ create policy "own inbox_items" on inbox_items
 alter publication supabase_realtime add table workstreams;
 alter publication supabase_realtime add table tasks;
 alter publication supabase_realtime add table dependencies;
+alter publication supabase_realtime add table task_links;
 alter publication supabase_realtime add table inbox_items;

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
-import { LogOut, Waypoints } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { LogOut, Waypoints, Settings } from 'lucide-react'
 import Auth from './components/Auth'
 import Nav from './components/Nav'
 import QuickCapture from './components/QuickCapture'
@@ -12,6 +12,10 @@ import TaskDetail from './components/TaskDetail'
 import Toast from './components/Toast'
 import SetupNotice from './components/SetupNotice'
 import ThemeToggle from './components/ThemeToggle'
+import OfflineBanner from './components/OfflineBanner'
+import SettingsPanel from './components/SettingsPanel'
+import * as offline from './lib/offline'
+import { runCheck, getPrefs } from './lib/notifications'
 import LayoutSwitcher from './components/LayoutSwitcher'
 import GridLayout from './components/GridLayout'
 import TimelineLayout from './components/TimelineLayout'
@@ -27,6 +31,7 @@ export default function App() {
   const [workstreams, setWorkstreams] = useState([])
   const [tasks, setTasks] = useState([])
   const [dependencies, setDependencies] = useState([])
+  const [taskLinks, setTaskLinks] = useState([])
   const [inbox, setInbox] = useState([])
 
   const [view, setView] = useState('dashboard') // dashboard | today | inbox
@@ -34,6 +39,12 @@ export default function App() {
   const [editingWorkstream, setEditingWorkstream] = useState(null) // null | 'new' | workstream
   const [openTaskId, setOpenTaskId] = useState(null)
   const [toast, setToast] = useState(null)
+  const [online, setOnline] = useState(offline.isOnline)
+  const [pending, setPending] = useState(offline.outboxCount)
+  const [snapshotAt, setSnapshotAt] = useState(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState(null)
+  const [showSettings, setShowSettings] = useState(false)
   // Desktop layout choice. Persisted, but only ever applied at md and above —
   // the stacked list is the right answer on a phone regardless of what's saved.
   const [layout, setLayoutState] = useState(() => {
@@ -77,18 +88,49 @@ export default function App() {
   }, [])
 
   // --- data loading + realtime ---------------------------------------------
-  const loadAll = useCallback(async () => {
-    const [ws, tk, dep, ib] = await Promise.all([
-      api.listWorkstreams(),
-      api.listAllTasks(),
-      api.listDependencies(),
-      api.listInbox(),
-    ])
-    setWorkstreams(ws)
-    setTasks(tk)
-    setDependencies(dep)
-    setInbox(ib)
+  const applyData = useCallback((d) => {
+    setWorkstreams(d.workstreams)
+    setTasks(d.tasks)
+    setDependencies(d.dependencies)
+    setTaskLinks(d.taskLinks)
+    setInbox(d.inbox)
   }, [])
+
+  const loadAll = useCallback(async () => {
+    // Offline, or the network died mid-flight: fall back to the last snapshot
+    // rather than blanking the screen. Anything still in the outbox is replayed
+    // over the top so your own edits stay visible.
+    if (!offline.isOnline()) {
+      const snap = offline.loadSnapshot()
+      if (snap) {
+        let d = snap.data
+        for (const item of offline.getOutbox()) d = offline.applyLocally(d, item.op, item.args)
+        applyData(d)
+        setSnapshotAt(snap.savedAt)
+      }
+      return
+    }
+    try {
+      const [ws, tk, dep, links, ib] = await Promise.all([
+        api.listWorkstreams(),
+        api.listAllTasks(),
+        api.listDependencies(),
+        api.listTaskLinks(),
+        api.listInbox(),
+      ])
+      const d = { workstreams: ws, tasks: tk, dependencies: dep, taskLinks: links, inbox: ib }
+      applyData(d)
+      offline.saveSnapshot(d)
+      setSnapshotAt(Date.now())
+    } catch (err) {
+      const snap = offline.loadSnapshot()
+      if (snap) {
+        applyData(snap.data)
+        setSnapshotAt(snap.savedAt)
+      }
+      if (offline.isOnline()) setSyncError('Could not reach the server. Showing cached data.')
+    }
+  }, [applyData])
 
   useEffect(() => {
     if (!session) return
@@ -98,6 +140,7 @@ export default function App() {
       api.subscribeToTable('workstreams', userId, loadAll),
       api.subscribeToTable('tasks', userId, loadAll),
       api.subscribeToTable('dependencies', userId, loadAll),
+      api.subscribeToTable('task_links', userId, loadAll),
       api.subscribeToTable('inbox_items', userId, loadAll),
     ]
     return () => unsubs.forEach((u) => u())
@@ -121,30 +164,133 @@ export default function App() {
   const activeWorkstream = activeWorkstreamId ? workstreamsById[activeWorkstreamId] : null
   const openTask = openTaskId ? tasksById[openTaskId] : null
 
+  // --- offline-aware mutation -------------------------------------------------
+
+  const dataRef = useRef({
+    workstreams: [],
+    tasks: [],
+    dependencies: [],
+    taskLinks: [],
+    inbox: [],
+  })
+  useEffect(() => {
+    dataRef.current = { workstreams, tasks, dependencies, taskLinks, inbox }
+  }, [workstreams, tasks, dependencies, taskLinks, inbox])
+
+  /**
+   * Every write goes through here. The local data is updated first so the app
+   * responds the same whether or not there's a connection; the write then
+   * either goes to the server or into the outbox.
+   */
+  const mutate = useCallback(
+    async (op, ...args) => {
+      const next = offline.applyLocally(dataRef.current, op, args)
+      applyData(next)
+      offline.saveSnapshot(next)
+
+      if (!offline.isOnline()) {
+        setPending(offline.enqueue(op, args))
+        return null
+      }
+      try {
+        const result = await api[op](...args)
+        await loadAll()
+        return result
+      } catch (err) {
+        if (!offline.isOnline()) {
+          setPending(offline.enqueue(op, args))
+          return null
+        }
+        // A real server rejection — reload so the screen matches the server
+        // rather than leaving the optimistic edit sitting there as a lie.
+        setSyncError(err?.message || 'That change could not be saved.')
+        await loadAll()
+        return null
+      }
+    },
+    [applyData, loadAll]
+  )
+
+  const flush = useCallback(async () => {
+    if (!offline.isOnline() || offline.outboxCount() === 0) return
+    setSyncing(true)
+    setSyncError(null)
+    const { failed, remaining } = await offline.flushOutbox(api)
+    setPending(remaining)
+    setSyncing(false)
+    if (failed.length) {
+      setSyncError(
+        `${failed.length} queued ${failed.length === 1 ? 'change' : 'changes'} could not be saved and ${failed.length === 1 ? 'was' : 'were'} dropped.`
+      )
+    }
+    await loadAll()
+  }, [loadAll])
+
+  // Connection changes
+  useEffect(() => {
+    const goOnline = () => {
+      setOnline(true)
+      flush()
+    }
+    const goOffline = () => setOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [flush])
+
+  // Drain anything left over from a previous session on start-up.
+  useEffect(() => {
+    if (session && offline.isOnline() && offline.outboxCount() > 0) flush()
+  }, [session, flush])
+
+  // --- reminders --------------------------------------------------------------
+  useEffect(() => {
+    if (!session) return
+    const tick = () => {
+      try {
+        runCheck({ workstreams, tasksByWorkstream, prefs: getPrefs() })
+      } catch {
+        /* a failed reminder must never take the app down */
+      }
+    }
+    tick()
+    const id = setInterval(tick, 60_000)
+    // Re-check on focus, which is the realistic moment a backgrounded app
+    // catches up on anything it slept through.
+    window.addEventListener('focus', tick)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', tick)
+    }
+  }, [session, workstreams, tasksByWorkstream])
+
   // --- actions ---------------------------------------------------------------
   async function handleSaveWorkstream(patch) {
     if (editingWorkstream === 'new') {
-      const created = await api.createWorkstream({ ...patch, sort_order: workstreams.length })
+      const created = await mutate('createWorkstream', {
+        ...patch,
+        sort_order: workstreams.length,
+      })
       setEditingWorkstream(null)
-      loadAll()
-      setActiveWorkstreamId(created.id)
+      // Offline there's no server id to jump to, so stay on the overview.
+      if (created?.id) setActiveWorkstreamId(created.id)
     } else {
-      await api.updateWorkstream(editingWorkstream.id, patch)
+      await mutate('updateWorkstream', editingWorkstream.id, patch)
       setEditingWorkstream(null)
-      loadAll()
     }
   }
 
   async function handleDeleteWorkstream(id) {
-    await api.deleteWorkstream(id)
+    await mutate('deleteWorkstream', id)
     setEditingWorkstream(null)
     setActiveWorkstreamId(null)
-    loadAll()
   }
 
   async function handleCreateTask(payload) {
-    await api.createTask(payload)
-    loadAll()
+    await mutate('createTask', payload)
   }
 
   async function handleSetStatus(task, status) {
@@ -152,12 +298,11 @@ export default function App() {
     // filing it away — it should stay on the list, not pile up in "done".
     if (status === 'done' && isRecurring(task)) {
       const nextDue = computeNextDue(task, todayISO())
-      await api.completeRecurring(task, nextDue)
+      await mutate('completeRecurring', task, nextDue)
       setToast(`Nice — next one ${formatDue(nextDue)?.label.toLowerCase() ?? nextDue}`)
     } else {
-      await api.setTaskStatus(task.id, status)
+      await mutate('setTaskStatus', task.id, status)
     }
-    loadAll()
   }
 
   // A recurring sequence (e.g. a monthly checklist) finishes a whole cycle:
@@ -165,80 +310,78 @@ export default function App() {
   async function handleCompleteCycle(sequence) {
     const stepIds = tasks.filter((t) => t.parent_id === sequence.id).map((t) => t.id)
     const nextDue = computeNextDue(sequence, todayISO())
-    await api.resetSequenceCycle(sequence, stepIds, nextDue)
+    await mutate('resetSequenceCycle', sequence, stepIds, nextDue)
     setToast(`Cycle complete — resets for ${formatDue(nextDue)?.label.toLowerCase() ?? nextDue}`)
     setOpenTaskId(null)
-    loadAll()
   }
 
   async function handleReorderWorkstreams(reordered) {
-    setWorkstreams(reordered) // optimistic, so the drop feels instant
-    await api.reorderWorkstreams(reordered.map((w, i) => ({ id: w.id, sort_order: i })))
-    loadAll()
+    await mutate(
+      'reorderWorkstreams',
+      reordered.map((w, i) => ({ id: w.id, sort_order: i }))
+    )
   }
 
   async function handleReorderTasks(updates) {
-    await api.reorderTasks(updates)
-    loadAll()
+    await mutate('reorderTasks', updates)
   }
 
   async function handleUpdateTask(id, patch) {
-    await api.updateTask(id, patch)
-    loadAll()
+    await mutate('updateTask', id, patch)
   }
 
   async function handleDeleteTask(id) {
-    await api.deleteTask(id)
     setOpenTaskId(null)
-    loadAll()
+    await mutate('deleteTask', id)
   }
 
   async function handleCreateStep(sequenceId, title, sortOrder) {
     const seq = tasksById[sequenceId]
-    await api.createTask({
+    await mutate('createTask', {
       workstream_id: seq.workstream_id,
       parent_id: sequenceId,
       item_type: 'step',
       title,
       sort_order: sortOrder,
     })
-    loadAll()
   }
 
   async function handleReorderSteps(updates) {
-    await api.reorderTasks(updates)
-    loadAll()
+    await mutate('reorderTasks', updates)
   }
 
   async function handleAddDependency(payload) {
-    await api.addDependency(payload)
-    loadAll()
+    await mutate('addDependency', payload)
+  }
+
+  async function handleAddLink(taskId, otherTaskId) {
+    await mutate('addTaskLink', taskId, otherTaskId)
+  }
+
+  async function handleRemoveLink(id) {
+    await mutate('removeTaskLink', id)
   }
 
   async function handleRemoveDependency(id) {
-    await api.removeDependency(id)
-    loadAll()
+    await mutate('removeDependency', id)
   }
 
   async function handleCapture(text) {
-    await api.addInboxItem(text)
-    loadAll()
+    await mutate('addInboxItem', text)
   }
 
   async function handleTriage(item, workstreamId) {
-    await api.createTask({
+    await mutate('createTask', {
       workstream_id: workstreamId,
       item_type: 'standalone',
       title: item.text,
       sort_order: (tasksByWorkstream[workstreamId] || []).length,
     })
-    await api.deleteInboxItem(item.id)
-    loadAll()
+    await mutate('deleteInboxItem', item.id)
   }
 
   async function handleDismissInbox(id) {
-    await api.deleteInboxItem(id)
-    loadAll()
+    await mutate('deleteInboxItem', id)
   }
 
   function openWorkstream(id) {
@@ -263,12 +406,16 @@ export default function App() {
   return (
     <div className="min-h-screen bg-paper">
       <header className="sticky top-0 z-20 bg-paper/90 backdrop-blur border-b border-hairline">
-        <div className={`${shellWidth} mx-auto px-4 h-14 flex items-center justify-between`}>
-          <div className="flex items-center gap-2">
+        {/* The bar keeps one width no matter which layout the body is using.
+            Inheriting the body's max-w-2xl in List view left the header ~250px
+            short of what its own contents need, and the flex children silently
+            overlapped instead of wrapping. */}
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <Waypoints size={18} className="text-accent" strokeWidth={2.2} />
-            <span className="font-display font-semibold text-ink">Lines</span>
+            <span className="hidden sm:inline font-display font-semibold text-ink">Lines</span>
           </div>
-          <div className="hidden sm:block">
+          <div className="hidden sm:block min-w-0">
             <Nav
               active={activeWorkstreamId ? null : view}
               onChange={(v) => {
@@ -278,13 +425,26 @@ export default function App() {
               inboxCount={inbox.length}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {!activeWorkstreamId && view === 'dashboard' && (
               <LayoutSwitcher value={layout} onChange={setLayout} />
             )}
             <ThemeToggle />
             <button
-              onClick={() => api.signOut()}
+              onClick={() => setShowSettings(true)}
+              className="relative text-faint hover:text-ink p-1.5"
+              aria-label="Settings"
+            >
+              <Settings size={17} />
+              {pending > 0 && (
+                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-warn" />
+              )}
+            </button>
+            <button
+              onClick={() => {
+                offline.clearOfflineState()
+                api.signOut()
+              }}
               className="text-faint hover:text-ink p-1.5"
               aria-label="Sign out"
             >
@@ -293,6 +453,14 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      <OfflineBanner
+        online={online}
+        pending={pending}
+        snapshotAt={snapshotAt}
+        syncing={syncing}
+        syncError={syncError}
+      />
 
       <main>
         {activeWorkstream ? (
@@ -308,6 +476,7 @@ export default function App() {
             onCreateTask={handleCreateTask}
             onToggleStatus={handleSetStatus}
             onReorderTasks={handleReorderTasks}
+            taskLinks={taskLinks}
           />
         ) : view === 'dashboard' ? (
           effectiveLayout === 'list' ? (
@@ -359,6 +528,7 @@ export default function App() {
                   onCreateTask={handleCreateTask}
                   onToggleStatus={handleSetStatus}
                   onReorderTasks={handleReorderTasks}
+                  taskLinks={taskLinks}
                 />
               )}
             </div>
@@ -431,6 +601,19 @@ export default function App() {
           onAddDependency={handleAddDependency}
           onRemoveDependency={handleRemoveDependency}
           onCompleteCycle={() => handleCompleteCycle(openTask)}
+          taskLinks={taskLinks}
+          onAddLink={handleAddLink}
+          onRemoveLink={handleRemoveLink}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsPanel
+          online={online}
+          pending={pending}
+          snapshotAt={snapshotAt}
+          onClose={() => setShowSettings(false)}
+          onSyncNow={flush}
         />
       )}
 

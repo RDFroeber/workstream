@@ -1,6 +1,16 @@
 import { useState } from 'react'
-import { ArrowLeft, Plus, ListOrdered, Circle, CheckCircle2, Settings2, Link2, Repeat } from 'lucide-react'
-import { buildWorkstreamTree } from '../lib/api'
+import {
+  ArrowLeft,
+  Plus,
+  ListOrdered,
+  Circle,
+  CheckCircle2,
+  Settings2,
+  Link2,
+  Repeat,
+  Link,
+} from 'lucide-react'
+import { buildWorkstreamTree, linkedIdsFor } from '../lib/api'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
 import { StatusPill, DueBadge } from './ui'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
@@ -20,6 +30,7 @@ export default function WorkstreamView({
   onToggleStatus,
   onReorderTasks,
   embedded = false,
+  taskLinks = [],
 }) {
   const lineColor = useLineColor()
   const [adding, setAdding] = useState(null) // null | 'standalone' | 'sequence'
@@ -97,6 +108,7 @@ export default function WorkstreamView({
                 onToggleStatus={onToggleStatus}
                 handleProps={handleProps}
                 isDragging={isDragging}
+                taskLinks={taskLinks}
               />
             )}
           </SortableItem>
@@ -158,6 +170,7 @@ export default function WorkstreamView({
                 workstreamsById={workstreamsById}
                 onOpen={() => onOpenTask(item)}
                 onToggleStatus={onToggleStatus}
+                taskLinks={taskLinks}
               />
             ))}
           </div>
@@ -183,7 +196,9 @@ function TaskRow({
   onToggleStatus,
   handleProps,
   isDragging,
+  taskLinks = [],
 }) {
+  const linkCount = linkedIdsFor(item.id, taskLinks).length
   const isSequence = item.item_type === 'sequence'
   const isDone = item.status === 'done'
 
@@ -227,6 +242,15 @@ function TaskRow({
           <span className={`text-sm text-ink truncate ${isDone ? 'line-through text-muted' : ''}`}>
             {item.title}
           </span>
+          {linkCount > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-xs text-faint shrink-0"
+              title={`${linkCount} related ${linkCount === 1 ? 'task' : 'tasks'}`}
+            >
+              <Link size={11} />
+              {linkCount}
+            </span>
+          )}
         </div>
 
         {isSequence ? (

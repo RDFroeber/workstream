@@ -232,6 +232,68 @@ export async function removeDependency(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Task links — "related to", undirected and non-blocking
+// ---------------------------------------------------------------------------
+
+/**
+ * Links are stored with the lower uuid first so a pair can only exist once.
+ * Without this, linking A to B and later B to A would create two rows and the
+ * task would list the same relationship twice.
+ */
+export function normalizeLinkPair(a, b) {
+  return a < b ? [a, b] : [b, a]
+}
+
+export async function listTaskLinks() {
+  const { data, error } = await supabase.from('task_links').select('*')
+  if (error) throw error
+  return data
+}
+
+export async function addTaskLink(taskId, otherTaskId, note = '') {
+  if (taskId === otherTaskId) throw new Error('A task cannot be linked to itself.')
+  const [task_a_id, task_b_id] = normalizeLinkPair(taskId, otherTaskId)
+  const { data: userData } = await supabase.auth.getUser()
+  const { data, error } = await supabase
+    .from('task_links')
+    .insert({ task_a_id, task_b_id, note, user_id: userData.user.id })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function removeTaskLink(id) {
+  const { error } = await supabase.from('task_links').delete().eq('id', id)
+  if (error) throw error
+}
+
+/** Every task id linked to `taskId`, in either direction. */
+export function linkedIdsFor(taskId, links) {
+  const out = []
+  for (const l of links) {
+    if (l.task_a_id === taskId) out.push(l.task_b_id)
+    else if (l.task_b_id === taskId) out.push(l.task_a_id)
+  }
+  return out
+}
+
+/** The link rows touching `taskId`, paired with the id at the other end. */
+export function linksFor(taskId, links) {
+  return links
+    .filter((l) => l.task_a_id === taskId || l.task_b_id === taskId)
+    .map((l) => ({
+      link: l,
+      otherId: l.task_a_id === taskId ? l.task_b_id : l.task_a_id,
+    }))
+}
+
+export function areLinked(a, b, links) {
+  const [x, y] = normalizeLinkPair(a, b)
+  return links.some((l) => l.task_a_id === x && l.task_b_id === y)
+}
+
+// ---------------------------------------------------------------------------
 // Inbox (frictionless capture)
 // ---------------------------------------------------------------------------
 

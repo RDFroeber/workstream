@@ -25,6 +25,7 @@ export default function SplitLayout({
   onCreateTask,
   onToggleStatus,
   onReorderTasks,
+  taskLinks = [],
 }) {
   const lineColor = useLineColor()
   const selected = workstreams.find((w) => w.id === selectedId) || workstreams[0]
@@ -95,6 +96,7 @@ export default function SplitLayout({
             onCreateTask={onCreateTask}
             onToggleStatus={onToggleStatus}
             onReorderTasks={onReorderTasks}
+            taskLinks={taskLinks}
             embedded
           />
         ) : (

@@ -31,9 +31,9 @@ export const PALETTE = [
   { id: 'gold', name: 'Gold', hex: '#9A8203', family: 'Orange', dark: '#A17F1E' },
   // green
   { id: 'olive', name: 'Olive', hex: '#5C6B2E', family: 'Green', safe: true, dark: '#777D45' },
-  { id: 'lime', name: 'Lime', hex: '#4F8A10', family: 'Green', dark: '#618718' },
+  { id: 'lime', name: 'Lime', hex: '#8C9C00', family: 'Green', dark: '#99981B' },
+  { id: 'green', name: 'Green', hex: '#4F8A10', family: 'Green', dark: '#618718' },
   { id: 'forest', name: 'Forest', hex: '#186B3A', family: 'Green', dark: '#49834F' },
-  { id: 'green', name: 'Green', hex: '#1E8A6E', family: 'Green', dark: '#34886C' },
   { id: 'seafoam', name: 'Seafoam', hex: '#2C9C7A', family: 'Green', dark: '#469A75' },
   // teal / cyan
   { id: 'teal', name: 'Teal', hex: '#178A94', family: 'Teal', dark: '#30898D' },
@@ -47,8 +47,8 @@ export const PALETTE = [
   { id: 'violet', name: 'Violet', hex: '#6C4FA0', family: 'Purple', safe: true, dark: '#8670BC' },
   { id: 'purple', name: 'Purple', hex: '#8B3FA0', family: 'Purple', dark: '#9861BC' },
   // pink / magenta
-  { id: 'magenta', name: 'Magenta', hex: '#A62F86', family: 'Pink', safe: true, dark: '#BB50AA' },
-  { id: 'pink', name: 'Pink', hex: '#C2478A', family: 'Pink', dark: '#B94F8C' },
+  { id: 'magenta', name: 'Magenta', hex: '#A62F86', family: 'Pink', safe: true, dark: '#B556A5' },
+  { id: 'pink', name: 'Pink', hex: '#F05BB4', family: 'Pink', dark: '#E167BB' },
   // neutrals — useful for background or "someday" lines you want to recede
   { id: 'slate', name: 'Slate', hex: '#4A6070', family: 'Neutral', dark: '#5B7A8C' },
   { id: 'stone', name: 'Stone', hex: '#7A6A5D', family: 'Neutral', dark: '#847469' },
@@ -73,9 +73,9 @@ export const LINE_COLORS = PALETTE.map((c) => c.hex)
  * The cost is nil at 8 lines (worst-case ΔE 10.9 either way).
  */
 const ASSIGN_ORDER = [
-  'violet', 'rust', 'olive', 'magenta', 'forest', 'sky', 'navy', 'orange',
-  'purple', 'pink', 'indigo', 'crimson', 'blue', 'gold', 'lime', 'green',
-  'seafoam', 'rose', 'amber', 'cyan', 'teal', 'slate', 'stone', 'graphite',
+  'violet', 'rust', 'pink', 'olive', 'magenta', 'forest', 'sky', 'navy',
+  'orange', 'purple', 'indigo', 'lime', 'crimson', 'blue', 'green', 'seafoam',
+  'rose', 'amber', 'gold', 'cyan', 'teal', 'slate', 'stone', 'graphite',
 ]
 
 export function nextLineColor(existingColors = []) {

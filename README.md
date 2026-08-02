@@ -65,9 +65,15 @@ can't quietly break it:
   marker stays visible.
 - Every color sits near L\* 45–58, so no line visually shouts louder than the
   others on the dashboard.
-- Every pair is separated well past the just-noticeable threshold. Colors within
-  one family (Green / Seafoam) are the closest by design — meant to read as
-  related, not identical.
+- Every pair is separated well past the just-noticeable threshold. The tightest
+  remaining pairs are Navy / Indigo and Violet / Purple, adjacent shades within a
+  family that are meant to read as related rather than identical.
+
+One retired color to be aware of: the original Green was a teal-green that sat
+too close to Seafoam, so Green now uses what was previously Lime's hex and a
+brighter, yellower Lime was added in its place. Any line still holding the old
+`#1E8A6E` keeps rendering and shows up in the picker as "Current" — nothing
+breaks, it just isn't offered to new lines.
 
 **New lines get colors automatically**, in an order computed by a max-min search
 over perceptual distance measured simultaneously under normal vision and all
@@ -119,10 +125,18 @@ that opens fullscreen with no browser chrome.
   app. This uses `manifest.webmanifest`, including a maskable icon so Android
   can crop it to whatever shape the launcher uses without clipping the artwork.
 
-The icons are generated, not hand-drawn — run `python3 scripts/make-icons.py`
-(needs `cairosvg`) to regenerate everything from source after editing the mark.
-The 16px favicon uses a simplified version with no station node and wider gaps,
-because at that size the full mark turns to mush.
+The icon is the same waypoints mark the header uses — four nodes joined by two
+diagonals and a horizontal run. Run `python3 scripts/make-icons.py` (needs
+`cairosvg`) to regenerate everything after editing it; add `--light` for a
+dark-ink-on-white icon instead of the inverted default.
+
+The mark can't simply be scaled down for the favicon. At its native stroke
+weight the ring holes come out around half a device pixel at 16px and the
+rasteriser fills them in, so the whole thing renders as a solid cross. The
+favicon build thins the stroke and scales the mark up to keep every hole open,
+and drops the coloured accent node, which rasterises lighter than the white ones
+at that size and reads as a fault. Tests assert the topology and stroke weight
+so a future edit can't quietly turn it back into a blob.
 
 ## Reordering
 
@@ -227,7 +241,7 @@ iOS and Android without an app store.
 npm test
 ```
 
-92 tests, and the ones worth knowing about:
+96 tests, and the ones worth knowing about:
 
 - **Recurrence date math** — month-end clamping (Jan 31 + 1 month is Feb 28, not Mar 3),
   the schedule-vs-completion anchor distinction, biweekly rules with specific weekdays, and
@@ -240,6 +254,8 @@ npm test
 - **Dark palette** — that every dark variant is readable on the dark panel, doesn't
   glare, stays separable, and keeps its hue. Plus a guard that no component contains a
   hardcoded colour.
+- **Logo mark** — that the icon keeps the header glyph's exact coordinates and stays
+  drawn as open rings, since that's the property that fails first at small sizes.
 - **PWA assets** — that the icons exist, the manifest names the app Lines, paths are
   relative so it works on a subpath host, and the iOS-specific tags are present.
 - **Palette guarantees** — contrast, lightness consistency, pairwise separation, and

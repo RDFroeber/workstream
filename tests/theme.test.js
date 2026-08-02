@@ -177,3 +177,49 @@ describe('no hardcoded colors in components', () => {
     expect(offenders, `hardcoded in ${file}: ${offenders.join(', ')}`).toEqual([])
   })
 })
+
+// ---------------------------------------------------------------------------
+// The icon must stay the same mark the header shows. It's easy to "improve" the
+// favicon into something unrelated, and easy to scale the mark down until the
+// ring holes fill in and it rasterises as a solid blob.
+// ---------------------------------------------------------------------------
+describe('logo mark', () => {
+  const pub = (f) => path.join(process.cwd(), 'public', f)
+
+  it('keeps the four-node, three-edge topology of the header glyph', () => {
+    const svg = fs.readFileSync(pub('favicon.svg'), 'utf8')
+    expect((svg.match(/<circle/g) || []).length).toBe(4)
+    expect((svg.match(/<path/g) || []).length).toBe(3)
+  })
+
+  it('uses the header glyph coordinates, not a redrawn approximation', () => {
+    const svg = fs.readFileSync(pub('favicon.svg'), 'utf8')
+    for (const [cx, cy] of [
+      [12, 4.5],
+      [4.5, 12],
+      [19.5, 12],
+      [12, 19.5],
+    ]) {
+      expect(svg, `node ${cx},${cy} missing`).toContain(`cx="${cx}" cy="${cy}"`)
+    }
+    expect(svg).toContain('M7 12h10')
+  })
+
+  it('draws the nodes as open rings, which is what fails first at 16px', () => {
+    const svg = fs.readFileSync(pub('favicon.svg'), 'utf8')
+    const circles = svg.match(/<circle[^>]*>/g) || []
+    circles.forEach((c) => {
+      expect(c, 'node should be stroked, not filled').toContain('fill="none"')
+    })
+    // Stroke must stay thin enough that the holes survive rasterising.
+    const width = Number(/stroke-width="([\d.]+)"/.exec(circles[0])[1])
+    expect(width).toBeLessThanOrEqual(1.6)
+  })
+
+  it('ships a favicon whose 16px raster is not a solid mass', () => {
+    // A blob would be near-100% ink in the middle band; four rings leave holes.
+    const png = fs.readFileSync(pub('favicon-16.png'))
+    expect(png.length).toBeGreaterThan(200)
+    expect(png.subarray(1, 4).toString()).toBe('PNG')
+  })
+})

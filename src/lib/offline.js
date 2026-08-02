@@ -70,11 +70,36 @@ export function getOutbox() {
   return Array.isArray(q) ? q : []
 }
 
-export function enqueue(op, args) {
+/**
+ * `localId` is the temporary id a create operation handed to the local data.
+ * It's recorded so the flush can swap it for the real server id in every
+ * queued operation that came after — otherwise renaming a task you created
+ * offline sends the server an id it has never seen, and the edit is lost.
+ */
+export function enqueue(op, args, localId = null) {
   const queue = getOutbox()
-  queue.push({ id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, op, args })
+  queue.push({
+    id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    op,
+    args,
+    localId,
+  })
   write(OUTBOX_KEY, queue)
   return queue.length
+}
+
+/** Replace every occurrence of a temporary id anywhere inside an argument list. */
+export function remapArgs(args, mapping) {
+  if (!Object.keys(mapping).length) return args
+  const swap = (v) => {
+    if (typeof v === 'string') return mapping[v] ?? v
+    if (Array.isArray(v)) return v.map(swap)
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, swap(x)]))
+    }
+    return v
+  }
+  return args.map(swap)
 }
 
 export function dequeue(id) {
@@ -100,6 +125,8 @@ export function outboxCount() {
 export async function flushOutbox(handlers) {
   const queue = getOutbox()
   const failed = []
+  // Temporary id -> real id, filled in as creates come back from the server.
+  const mapping = {}
   let sent = 0
 
   for (const item of queue) {
@@ -112,7 +139,10 @@ export async function flushOutbox(handlers) {
       continue
     }
     try {
-      await handler(...item.args)
+      const args = remapArgs(item.args, mapping)
+      const result = await handler(...args)
+      // A create that was referenced later: remember what the server called it.
+      if (item.localId && result?.id) mapping[item.localId] = result.id
       dequeue(item.id)
       sent++
     } catch (err) {
@@ -133,14 +163,23 @@ export async function flushOutbox(handlers) {
 
 // --- optimistic local application -----------------------------------------
 
-const newId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+export const CREATE_OPS = new Set([
+  'createWorkstream',
+  'createTask',
+  'addDependency',
+  'addTaskLink',
+  'addInboxItem',
+])
+
+export const newId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
 /**
  * Apply an operation to an in-memory data set, so an offline edit shows up
  * straight away. Mirrors what the server would do, closely enough that the
  * screen doesn't visibly change when the real write lands later.
  */
-export function applyLocally(data, op, args) {
+export function applyLocally(data, op, args, localId = null) {
+  const mkId = () => localId || newId()
   const d = {
     workstreams: [...data.workstreams],
     tasks: [...data.tasks],
@@ -151,7 +190,7 @@ export function applyLocally(data, op, args) {
 
   switch (op) {
     case 'createWorkstream': {
-      d.workstreams.push({ id: newId(), status: 'active', ...args[0] })
+      d.workstreams.push({ id: mkId(), status: 'active', ...args[0] })
       break
     }
     case 'updateWorkstream': {
@@ -167,7 +206,7 @@ export function applyLocally(data, op, args) {
     }
     case 'createTask': {
       d.tasks.push({
-        id: newId(),
+        id: mkId(),
         status: 'todo',
         item_type: 'standalone',
         notes: '',
@@ -253,7 +292,7 @@ export function applyLocally(data, op, args) {
       break
     }
     case 'addDependency': {
-      d.dependencies.push({ id: newId(), ...args[0] })
+      d.dependencies.push({ id: mkId(), ...args[0] })
       break
     }
     case 'removeDependency': {
@@ -266,7 +305,7 @@ export function applyLocally(data, op, args) {
       const exists = d.taskLinks.some(
         (l) => l.task_a_id === task_a_id && l.task_b_id === task_b_id
       )
-      if (!exists) d.taskLinks.push({ id: newId(), task_a_id, task_b_id, note })
+      if (!exists) d.taskLinks.push({ id: mkId(), task_a_id, task_b_id, note })
       break
     }
     case 'removeTaskLink': {
@@ -274,7 +313,7 @@ export function applyLocally(data, op, args) {
       break
     }
     case 'addInboxItem': {
-      d.inbox.push({ id: newId(), text: args[0], created_at: new Date().toISOString() })
+      d.inbox.push({ id: mkId(), text: args[0], created_at: new Date().toISOString() })
       break
     }
     case 'deleteInboxItem': {

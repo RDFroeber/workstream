@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   X,
   Trash2,
@@ -10,6 +10,7 @@ import {
   Repeat,
   RotateCcw,
   Link,
+  ExternalLink,
 } from 'lucide-react'
 import Modal from './Modal'
 import { DueBadge } from './ui'
@@ -17,6 +18,7 @@ import RecurrenceEditor from './RecurrenceEditor'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
 import { linksFor } from '../lib/api'
+import { extractLinks, shortenLink } from '../lib/links'
 import { useLineColor } from '../lib/theme'
 
 export default function TaskDetail({
@@ -59,17 +61,40 @@ export default function TaskDetail({
     : []
   const allStepsDone = steps.length > 0 && steps.every((s) => s.status === 'done')
 
+  const noteLinks = extractLinks(notes)
   const related = linksFor(task.id, taskLinks)
   const relatedIds = new Set(related.map((r) => r.otherId))
   const blockedBy = dependencies.filter((d) => d.task_id === task.id)
   const blocks = dependencies.filter((d) => d.depends_on_task_id === task.id)
 
+  // What's already been written back. Compared against instead of the task
+  // prop, because the prop won't have caught up yet when a second commit fires.
+  const savedRef = useRef({ title: task.title, notes: task.notes || '' })
+
   function commitTitle() {
-    if (title.trim() && title !== task.title) onUpdate(task.id, { title: title.trim() })
+    const next = title.trim()
+    if (next && next !== savedRef.current.title) {
+      savedRef.current.title = next
+      onUpdate(task.id, { title: next })
+    }
   }
   function commitNotes() {
-    if (notes !== (task.notes || '')) onUpdate(task.id, { notes })
+    if (notes !== savedRef.current.notes) {
+      savedRef.current.notes = notes
+      onUpdate(task.id, { notes })
+    }
   }
+
+  // Title and notes only saved on blur, and React does not fire blur when a
+  // focused element is unmounted. Pressing Escape, or clicking through to a
+  // step, therefore threw the edit away silently. Committing on unmount covers
+  // every exit path; savedRef stops it double-writing after a normal blur.
+  const commitRef = useRef(() => {})
+  commitRef.current = () => {
+    commitTitle()
+    commitNotes()
+  }
+  useEffect(() => () => commitRef.current(), [])
 
   function addStep(e) {
     e.preventDefault()
@@ -182,6 +207,25 @@ export default function TaskDetail({
           placeholder="Any context worth remembering…"
           className="w-full rounded-lg border border-hairlineStrong px-3 py-2 text-sm text-ink bg-panel focus:border-accent outline-none resize-none"
         />
+        {/* Links stay clickable while the notes stay editable — no edit/preview
+            toggle to get stuck in. Only http and https are ever rendered. */}
+        {noteLinks.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {noteLinks.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={l.href}
+                className="inline-flex items-center gap-1 max-w-full text-xs text-accent bg-accentSoft border border-hairline rounded-full px-2 py-1 hover:border-accent transition-colors"
+              >
+                <ExternalLink size={11} className="shrink-0" />
+                <span className="truncate">{shortenLink(l.href)}</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* A single step inside a sequence can't repeat on its own — the whole

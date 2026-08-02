@@ -44,7 +44,13 @@ function InboxRow({ item, workstreams, onTriage, onDismiss }) {
       </div>
 
       {picking ? (
-        <div className="flex flex-wrap gap-1.5 mt-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+          {workstreams.length === 0 && (
+            // Without this the picker opens to nothing but a Cancel button.
+            <span className="text-xs text-muted">
+              No lines yet — create one first, then send this to it.
+            </span>
+          )}
           {workstreams.map((ws) => (
             <button
               key={ws.id}

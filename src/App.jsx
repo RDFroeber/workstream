@@ -184,12 +184,16 @@ export default function App() {
    */
   const mutate = useCallback(
     async (op, ...args) => {
-      const next = offline.applyLocally(dataRef.current, op, args)
+      // Creates get their temporary id here rather than inside the reducer, so
+      // the queued operation and the local data agree on what to call the new
+      // row. The flush swaps it for the server's id in everything queued after.
+      const localId = offline.CREATE_OPS.has(op) ? offline.newId() : null
+      const next = offline.applyLocally(dataRef.current, op, args, localId)
       applyData(next)
       offline.saveSnapshot(next)
 
       if (!offline.isOnline()) {
-        setPending(offline.enqueue(op, args))
+        setPending(offline.enqueue(op, args, localId))
         return null
       }
       try {
@@ -198,7 +202,7 @@ export default function App() {
         return result
       } catch (err) {
         if (!offline.isOnline()) {
-          setPending(offline.enqueue(op, args))
+          setPending(offline.enqueue(op, args, localId))
           return null
         }
         // A real server rejection — reload so the screen matches the server

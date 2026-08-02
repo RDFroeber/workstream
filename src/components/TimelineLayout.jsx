@@ -42,8 +42,11 @@ export default function TimelineLayout({
     const items = []
     for (const node of tree) {
       if (node.item_type === 'sequence') {
-        for (const s of node.steps) if (s.status !== 'done' && s.due_date) items.push(s)
-        if (node.due_date && node.status !== 'done') items.push(node)
+        // Only the step that's actually next, matching the dashboard, Today and
+        // the reminders. Plotting every future step would double-count the
+        // sequence against itself and inflate the crunch-day warning.
+        if (node.nextStep?.due_date) items.push(node.nextStep)
+        else if (!node.steps.length && node.due_date && node.status !== 'done') items.push(node)
       } else if (node.status !== 'done' && node.due_date) {
         items.push(node)
       }

@@ -208,6 +208,19 @@ and drops the coloured accent node, which rasterises lighter than the white ones
 at that size and reads as a fault. Tests assert the topology and stroke weight
 so a future edit can't quietly turn it back into a blob.
 
+## Notes
+
+Notes are a plain text field, and any http or https address in them is rendered
+as a clickable chip underneath. The text stays a normal editable textarea rather
+than switching to a preview mode, so links are usable without there being an
+edit state to get stuck in. Only http and https are ever turned into links —
+`javascript:`, `data:` and `file:` are dropped, since these strings come from a
+user field and end up as href attributes.
+
+Title and notes are written back on blur *and* on unmount. React doesn't fire
+blur when a focused element is removed, so committing only on blur meant closing
+with Escape, or clicking through to a step, silently discarded the edit.
+
 ## Related links
 
 Any two tasks can be linked as related — across lines or within one. This is
@@ -328,10 +341,29 @@ iOS and Android without an app store.
 ## Tests
 
 ```bash
-npm test
+npm test          # run once
+npm run coverage  # with a coverage report
 ```
 
-180 tests, and the ones worth knowing about:
+392 tests, at 89% statement and 86% branch coverage. Every module that isn't
+pure UI chrome sits above 85%; `src/lib` — where the logic that can silently
+lose data lives — is at 92%.
+
+What deliberately isn't covered, and why:
+
+- **The real Supabase client.** `supabaseClient.js` is a thin env-var shim, and
+  the API layer is tested against a mock of the query builder. Whether the real
+  service honours the row-level security policies is a thing to verify against a
+  real project, not in jsdom.
+- **The service worker at runtime.** Its configuration is asserted; its actual
+  caching behaviour needs a browser.
+- **Drag gestures.** dnd-kit's lifecycle needs pointer events and layout
+  measurement, so the drop *calculation* was pulled out into `reorderOnDrop` and
+  tested directly, while the gesture itself is not.
+- **Anything visual.** Contrast and palette maths are tested numerically, but
+  whether it looks right is not something a test can tell you.
+
+The tests worth knowing about:
 
 - **Recurrence date math** — month-end clamping (Jan 31 + 1 month is Feb 28, not Mar 3),
   the schedule-vs-completion anchor distinction, biweekly rules with specific weekdays, and
@@ -344,6 +376,10 @@ npm test
 - **Dark palette** — that every dark variant is readable on the dark panel, doesn't
   glare, stays separable, and keeps its hue. Plus a guard that no component contains a
   hardcoded colour.
+- **Unsaved edits** — that notes and title survive Escape, navigating to a step, and any
+  other unmount, and that a normal blur followed by unmount doesn't write twice.
+- **Offline ids** — that a row created offline and then edited keeps its edits: the
+  temporary id is swapped for the server's in everything queued behind it.
 - **Offline** — that the optimistic reducer mirrors what the server would do for every
   operation, that the outbox replays in order, stops at a transient failure, and drops a
   permanently rejected write rather than blocking forever.

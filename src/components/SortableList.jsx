@@ -17,6 +17,22 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 
 /**
+ * The drop calculation, kept out of the event handler so it can be tested.
+ * dnd-kit's drag lifecycle needs real pointer events and layout measurement,
+ * neither of which exist in jsdom, so the logic itself would otherwise be
+ * unreachable from a test.
+ *
+ * Returns the reordered array, or null when the drop is a no-op.
+ */
+export function reorderOnDrop(items, { active, over }) {
+  if (!over || !active || active.id === over.id) return null
+  const oldIndex = items.findIndex((i) => i.id === active.id)
+  const newIndex = items.findIndex((i) => i.id === over.id)
+  if (oldIndex === -1 || newIndex === -1) return null
+  return arrayMove(items, oldIndex, newIndex)
+}
+
+/**
  * Wraps a vertical list in drag-to-reorder.
  *
  * `items` must be objects with an `id`. On drop, `onReorder` receives the
@@ -33,12 +49,8 @@ export default function SortableList({ items, onReorder, children, className = '
   )
 
   function handleDragEnd(event) {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = items.findIndex((i) => i.id === active.id)
-    const newIndex = items.findIndex((i) => i.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    onReorder(arrayMove(items, oldIndex, newIndex))
+    const next = reorderOnDrop(items, event)
+    if (next) onReorder(next)
   }
 
   return (

@@ -39,9 +39,28 @@ export async function signOut() {
   if (error) throw error
 }
 
+/**
+ * The event matters, not just the session. Following a recovery link signs the
+ * user in with a temporary session and fires PASSWORD_RECOVERY — without
+ * surfacing that, the link would just drop them into the app with no way to
+ * actually set a new password.
+ */
 export function onAuthStateChange(callback) {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => callback(session))
+  const { data } = supabase.auth.onAuthStateChange((event, session) => callback(session, event))
   return data.subscription
+}
+
+/** Emails a recovery link back to wherever this copy of the app is served. */
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: appUrl() })
+  if (error) throw error
+}
+
+/** Sets a new password for the signed-in (or recovery-session) user. */
+export async function updatePassword(password) {
+  const { data, error } = await supabase.auth.updateUser({ password })
+  if (error) throw error
+  return data
 }
 
 export async function getSession() {

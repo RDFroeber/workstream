@@ -11,6 +11,7 @@ import WorkstreamForm from './components/WorkstreamForm'
 import TaskDetail from './components/TaskDetail'
 import Toast from './components/Toast'
 import SetupNotice from './components/SetupNotice'
+import NewPassword from './components/NewPassword'
 import ThemeToggle from './components/ThemeToggle'
 import OfflineBanner from './components/OfflineBanner'
 import SettingsPanel from './components/SettingsPanel'
@@ -45,6 +46,7 @@ export default function App() {
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [recovering, setRecovering] = useState(false)
   // Desktop layout choice. Persisted, but only ever applied at md and above —
   // the stacked list is the right answer on a phone regardless of what's saved.
   const [layout, setLayoutState] = useState(() => {
@@ -82,7 +84,14 @@ export default function App() {
   useEffect(() => {
     if (!isConfigured) return
     api.getSession().then(setSession)
-    const sub = api.onAuthStateChange(setSession)
+    const sub = api.onAuthStateChange((next, event) => {
+      setSession(next)
+      // Following a recovery link signs the user in with a temporary session.
+      // Without catching the event they'd land in the app with the forgotten
+      // password still set and no prompt to change it.
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
+      if (event === 'SIGNED_OUT') setRecovering(false)
+    })
     return () => sub.unsubscribe()
   }, [])
 
@@ -419,6 +428,9 @@ export default function App() {
   }
   if (session === null) {
     return <Auth />
+  }
+  if (recovering) {
+    return <NewPassword onDone={() => setRecovering(false)} />
   }
 
   return (

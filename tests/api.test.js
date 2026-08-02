@@ -37,6 +37,14 @@ const mocks = vi.hoisted(() => {
         return state.authResult ?? { data: { user: state.user }, error: null }
       },
       signOut: async () => state.authResult ?? { error: null },
+      resetPasswordForEmail: async (...args) => {
+        state.calls.push({ method: 'resetPasswordForEmail', args })
+        return state.authResult ?? { data: {}, error: null }
+      },
+      updateUser: async (...args) => {
+        state.calls.push({ method: 'updateUser', args })
+        return state.authResult ?? { data: { user: state.user }, error: null }
+      },
       onAuthStateChange: (cb) => {
         state.authCallback = cb
         return { data: { subscription: { unsubscribe: () => state.calls.push({ method: 'unsub' }) } } }
@@ -121,9 +129,40 @@ describe('auth', () => {
     const cb = vi.fn()
     const sub = api.onAuthStateChange(cb)
     mocks.state.authCallback('SIGNED_IN', { user: { id: 'user-1' } })
-    expect(cb).toHaveBeenCalledWith({ user: { id: 'user-1' } })
+    expect(cb).toHaveBeenCalledWith({ user: { id: 'user-1' } }, 'SIGNED_IN')
     sub.unsubscribe()
     expect(lastCall('unsub')).toBeTruthy()
+  })
+
+  it('passes the event through, not only the session', () => {
+    // A recovery link produces a normal-looking session; only the event
+    // distinguishes it, and it decides whether to ask for a new password.
+    const cb = vi.fn()
+    api.onAuthStateChange(cb)
+    mocks.state.authCallback('PASSWORD_RECOVERY', { user: { id: 'user-1' } })
+    expect(cb).toHaveBeenCalledWith(expect.anything(), 'PASSWORD_RECOVERY')
+  })
+
+  it('asks for the reset link to come back to this copy of the app', async () => {
+    await api.requestPasswordReset('a@b.com')
+    const [email, opts] = calledWith('resetPasswordForEmail')
+    expect(email).toBe('a@b.com')
+    expect(opts.redirectTo).toBe(api.appUrl())
+  })
+
+  it('surfaces a failed reset request', async () => {
+    mocks.state.authResult = { data: null, error: new Error('rate limited') }
+    await expect(api.requestPasswordReset('a@b.com')).rejects.toThrow('rate limited')
+  })
+
+  it('sets a new password', async () => {
+    await api.updatePassword('a-new-password')
+    expect(calledWith('updateUser')[0]).toEqual({ password: 'a-new-password' })
+  })
+
+  it('surfaces a rejected password', async () => {
+    mocks.state.authResult = { data: null, error: new Error('Password should be at least 6 characters') }
+    await expect(api.updatePassword('short')).rejects.toThrow(/at least 6/)
   })
 })
 

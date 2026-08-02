@@ -21,6 +21,25 @@ host, syncs across devices, and it's yours to change.
 - **Inbox** — a frictionless capture bucket. The floating "Quick capture" button is always
   on screen; anything you jot down lands here until you send it to a line.
 
+## Signing in
+
+Email and password, with a reset flow. Following a reset link signs you in on a
+temporary session and lands you on a "set a new password" screen — Supabase
+treats the link as an authentication, so without intercepting the
+`PASSWORD_RECOVERY` event you'd be dropped into the app with the forgotten
+password still set.
+
+The reset request reports the same message whether or not the address has an
+account, so the form can't be used to discover which addresses are registered.
+
+Both the confirmation and reset links are sent back to `appUrl()` — the
+directory this copy of the app is served from — so they work from local dev and
+the deployed copy alike, provided both are in the Supabase **Redirect URLs**
+allow list.
+
+There's no Google or other social sign-in, deliberately. See
+`docs/app-store.md` for why that interacts badly with App Store review.
+
 ## Updating a deployed copy
 
 The service worker uses `registerType: 'autoUpdate'`, so a new build takes over
@@ -376,7 +395,7 @@ npm test          # run once
 npm run coverage  # with a coverage report
 ```
 
-449 tests, at 92% statement and 89% branch coverage. `src/lib` — where the logic
+475 tests, at 93% statement and 90% branch coverage. `src/lib` — where the logic
 that can silently lose data lives — is at 92%, and the API layer at 99%.
 
 What deliberately isn't covered, and why:

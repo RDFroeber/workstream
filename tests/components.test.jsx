@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react'
 import { ThemeProvider, useTheme, useLineColor } from '../src/lib/theme'
 
 const noop = () => {}
@@ -90,7 +90,7 @@ describe('Auth', () => {
     fill()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Working…' }).disabled).toBe(true))
-    release({})
+    await act(async () => release({}))
   })
 })
 

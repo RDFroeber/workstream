@@ -33,6 +33,8 @@ const fake = vi.hoisted(() => {
         state.authCb = cb
         return { unsubscribe: () => {} }
       },
+      updatePassword: vi.fn(async () => ({})),
+      requestPasswordReset: vi.fn(async () => {}),
       signOut: vi.fn(async () => {}),
       signIn: vi.fn(async () => ({})),
       signUp: vi.fn(async () => ({})),
@@ -205,7 +207,11 @@ const clickNav = (label) => {
 
 const setOnline = (value) => {
   Object.defineProperty(navigator, 'onLine', { value, configurable: true })
-  window.dispatchEvent(new Event(value ? 'online' : 'offline'))
+  // The listener updates state, so settle it here. Going back online also
+  // kicks off an async flush — call sites await act(...) for that part.
+  act(() => {
+    window.dispatchEvent(new Event(value ? 'online' : 'offline'))
+  })
 }
 
 async function addLine(name) {
@@ -795,5 +801,59 @@ describe('App — two mutations in a row', () => {
       expect(fake.db.tasks.map((t) => t.title)).toEqual(['a captured thought'])
       expect(fake.db.inbox_items).toHaveLength(0)
     })
+  })
+})
+
+describe('App — recovery link', () => {
+  it('asks for a new password instead of dropping you straight in', async () => {
+    // Supabase signs the user in with a temporary session when they follow the
+    // link. Only the event distinguishes it from an ordinary sign-in, so
+    // ignoring the event would leave them inside the app with the forgotten
+    // password still set.
+    await renderApp()
+    await act(async () => {
+      fake.state.authCb({ user: { id: 'user-1' } }, 'PASSWORD_RECOVERY')
+    })
+    expect(await screen.findByText('Set a new password')).toBeTruthy()
+    expect(screen.queryByText('System map')).toBeNull()
+  })
+
+  it('returns to the app once the password is set', async () => {
+    await renderApp()
+    await act(async () => {
+      fake.state.authCb({ user: { id: 'user-1' } }, 'PASSWORD_RECOVERY')
+    })
+    await screen.findByText('Set a new password')
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'a-long-enough-password' },
+    })
+    fireEvent.change(screen.getByLabelText('Confirm it'), {
+      target: { value: 'a-long-enough-password' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Save and continue/ }))
+    })
+    expect(await screen.findByText('System map')).toBeTruthy()
+  })
+
+  it('leaves an ordinary sign-in alone', async () => {
+    await renderApp()
+    await act(async () => {
+      fake.state.authCb({ user: { id: 'user-1' } }, 'SIGNED_IN')
+    })
+    expect(await screen.findByText('System map')).toBeTruthy()
+    expect(screen.queryByText('Set a new password')).toBeNull()
+  })
+
+  it('drops out of recovery if the session ends', async () => {
+    await renderApp()
+    await act(async () => {
+      fake.state.authCb({ user: { id: 'user-1' } }, 'PASSWORD_RECOVERY')
+    })
+    await screen.findByText('Set a new password')
+    await act(async () => {
+      fake.state.authCb(null, 'SIGNED_OUT')
+    })
+    expect(await screen.findByText('Welcome back')).toBeTruthy()
   })
 })

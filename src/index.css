@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: #F7F8FA;
+  color: #1B2430;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #22404F;
+  color: #fff;
+}
+
+/* visible keyboard focus, everywhere */
+:focus-visible {
+  outline: 2px solid #22404F;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* scrollbar, subtle */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #CBD1D9; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }

@@ -1,5 +1,6 @@
 -- Lines — workstream tracker schema
--- Run this once in your Supabase project: Dashboard → SQL Editor → New query → paste → Run.
+-- Safe to run more than once: Dashboard → SQL Editor → New query → paste → Run.
+-- Existing deployments: run the migration-*.sql files (in order) instead.
 
 create extension if not exists "pgcrypto";
 
@@ -37,6 +38,9 @@ create table if not exists tasks (
   recurrence_anchor text not null default 'schedule'
     check (recurrence_anchor in ('schedule','completion')),
   recurrence_count int not null default 0,  -- how many times it's been completed
+  -- "picked for today": the day the user shortlisted this task. Separate from
+  -- due_date on purpose — choosing today's priorities must not reschedule.
+  focus_date date,
   last_completed_at timestamptz,
   created_at timestamptz not null default now(),
   completed_at timestamptz
@@ -55,7 +59,9 @@ create table if not exists dependencies (
   depends_on_task_id uuid not null references tasks(id) on delete cascade,
   note text default '',
   created_at timestamptz not null default now(),
-  constraint no_self_dependency check (task_id <> depends_on_task_id)
+  constraint no_self_dependency check (task_id <> depends_on_task_id),
+  -- the same blocker listed twice is noise, not information
+  constraint unique_dependency unique (task_id, depends_on_task_id)
 );
 
 -- ---------------------------------------------------------------------------
@@ -100,26 +106,66 @@ alter table dependencies enable row level security;
 alter table task_links enable row level security;
 alter table inbox_items enable row level security;
 
+drop policy if exists "own workstreams" on workstreams;
 create policy "own workstreams" on workstreams
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "own tasks" on tasks;
 create policy "own tasks" on tasks
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "own dependencies" on dependencies;
 create policy "own dependencies" on dependencies
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "own task_links" on task_links;
 create policy "own task_links" on task_links
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "own inbox_items" on inbox_items;
 create policy "own inbox_items" on inbox_items
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- Realtime — lets a second open device see changes live
 -- ---------------------------------------------------------------------------
-alter publication supabase_realtime add table workstreams;
-alter publication supabase_realtime add table tasks;
-alter publication supabase_realtime add table dependencies;
-alter publication supabase_realtime add table task_links;
-alter publication supabase_realtime add table inbox_items;
+do $$ begin
+  alter publication supabase_realtime add table workstreams;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table tasks;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table dependencies;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table task_links;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table inbox_items;
+exception when duplicate_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- Reordering in one round-trip.
+-- `updates` is a JSON array of { "id": uuid, "sort_order": int }. RLS applies
+-- (security invoker), so rows the caller doesn't own are silently untouched.
+-- ---------------------------------------------------------------------------
+create or replace function reorder_tasks(updates jsonb)
+returns void
+language sql
+as $$
+  update tasks t
+  set sort_order = (u->>'sort_order')::int
+  from jsonb_array_elements(updates) u
+  where t.id = (u->>'id')::uuid;
+$$;
+
+create or replace function reorder_workstreams(updates jsonb)
+returns void
+language sql
+as $$
+  update workstreams w
+  set sort_order = (u->>'sort_order')::int
+  from jsonb_array_elements(updates) u
+  where w.id = (u->>'id')::uuid;
+$$;

@@ -11,12 +11,14 @@ import {
   RotateCcw,
   Link,
   ExternalLink,
+  Sun,
 } from 'lucide-react'
 import Modal from './Modal'
 import { DueBadge } from './ui'
 import RecurrenceEditor from './RecurrenceEditor'
 import SortableList, { SortableItem, DragHandle } from './SortableList'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
+import { todayISO } from '../lib/dates'
 import { linksFor, dependentsOf } from '../lib/api'
 import { extractLinks, shortenLink } from '../lib/links'
 import { useLineColor } from '../lib/theme'
@@ -114,7 +116,12 @@ export default function TaskDetail({
   // Anything already waiting on this task, however indirectly, is excluded —
   // choosing one would create a cycle and leave both ends blocked forever.
   const wouldCycle = dependentsOf(task.id, dependencies)
-  const depCandidates = allTasksFlat.filter((t) => !excludeIds.has(t.id) && !wouldCycle.has(t.id))
+  // Existing blockers are excluded too — picking one again just listed the
+  // same blocker twice (the same filter the link picker already had).
+  const blockedByIds = new Set(blockedBy.map((d) => d.depends_on_task_id))
+  const depCandidates = allTasksFlat.filter(
+    (t) => !excludeIds.has(t.id) && !wouldCycle.has(t.id) && !blockedByIds.has(t.id)
+  )
   // Already-linked tasks are filtered out — offering them again would just hit
   // the database's unique constraint.
   const linkCandidates = allTasksFlat.filter(
@@ -198,6 +205,27 @@ export default function TaskDetail({
             className="w-full rounded-lg border border-hairlineStrong px-2.5 py-1.5 text-sm text-ink bg-panel focus:border-accent outline-none"
           />
         </div>
+        {/* Picking for today never touches the due date — it's the day's
+            shortlist, not a reschedule. Sequences are containers, so the
+            pick lives on their steps instead. */}
+        {!isSequence && (
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Today</label>
+            <button
+              type="button"
+              onClick={() => onUpdate(task.id, { focus_date: task.focus_date ? null : todayISO() })}
+              aria-pressed={Boolean(task.focus_date)}
+              className={`w-full rounded-lg border px-2.5 py-1.5 text-sm inline-flex items-center justify-center gap-1.5 transition-colors ${
+                task.focus_date
+                  ? 'border-accent bg-accentSoft text-accent'
+                  : 'border-hairlineStrong text-muted hover:border-ink hover:text-ink'
+              }`}
+            >
+              <Sun size={14} />
+              {task.focus_date ? 'Picked for today' : 'Pick for today'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mb-5">
@@ -481,6 +509,15 @@ function TaskPicker({ candidates, workstreamsById, onPick, onCancel }) {
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          // Escape backs out of the picker only. Without the stop, the
+          // Modal's window-level listener also fired and closed the whole
+          // task — two levels of UI gone for one keypress.
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            onCancel()
+          }
+        }}
         placeholder="Search tasks…"
         className="w-full text-sm outline-none px-1.5 py-1 mb-1.5 border-b border-hairline"
       />

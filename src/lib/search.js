@@ -52,7 +52,25 @@ export function searchAll(query, data, limit = RESULT_LIMIT) {
   const d = data || {}
   const workstreams = d.workstreams || []
   const tasks = d.tasks || []
+  const inbox = d.inbox || []
   const results = []
+
+  // Inbox captures are searched too — something jotted down but not yet
+  // triaged is exactly the thing you can't find anywhere else.
+  for (const item of inbox) {
+    const score = scoreText(item.text, needle)
+    if (score) {
+      results.push({
+        type: 'inbox',
+        id: item.id,
+        title: item.text,
+        subtitle: 'Inbox — not yet sorted',
+        workstream: null,
+        task: null,
+        score,
+      })
+    }
+  }
 
   for (const ws of workstreams) {
     const score = scoreText(ws.name, needle)

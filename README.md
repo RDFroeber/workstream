@@ -17,7 +17,11 @@ host, syncs across devices, and it's yours to change.
 - **A task or sequence (detail)** — the low-level view. Notes, due date, the full ordered
   checklist if it's a sequence, and dependency links to tasks in *other* lines.
 - **Today** — pulls the single next action from every active line into one list, split into
-  overdue / due today / next up. This is the "am I forgetting anything" view.
+  overdue / due today / next up. This is the "am I forgetting anything" view. At the top
+  sit your **picks for the day**: tap the sun on any task — here, in a line, or in the
+  task detail — to shortlist it for today *without touching its due date*. Picking is
+  prioritizing, not rescheduling. Picks clear themselves when the task is done, and
+  unfinished ones carry over (labelled) rather than vanishing at midnight.
 - **Inbox** — a frictionless capture bucket. The floating "Quick capture" button is always
   on screen; anything you jot down lands here until you send it to a line.
 
@@ -371,9 +375,18 @@ Row-level security means every row is only ever visible to the account that crea
    `supabase/schema.sql`, and run it. This creates the tables and locks them down with
    row-level security.
 
-   *Already ran an earlier version of `schema.sql`?* Run
-   `supabase/migration-002-recurring.sql` and `supabase/migration-003-task-links.sql` instead — it adds just the recurrence columns to
-   your existing `tasks` table without touching your data.
+   *Already ran an earlier version of `schema.sql`?* Run the `supabase/migration-*.sql`
+   files you haven't run yet, in order, instead — each adds just its columns or
+   constraints without touching your data:
+
+   - `migration-002-recurring.sql` — recurrence columns
+   - `migration-003-task-links.sql` — the `task_links` table
+   - `migration-004-focus-date.sql` — the "picked for today" flag. **Required** for
+     current app versions: completing a task writes this column.
+   - `migration-005-unique-dependency.sql` — collapses duplicate blockers and prevents
+     new ones. Recommended.
+   - `migration-006-reorder.sql` — reorders a list in one round-trip instead of one
+     request per row. Optional: the app falls back automatically when it's missing.
 3. Go to **Project Settings → API**. You'll need the **Project URL** and the **anon public**
    key in the next step.
 4. Go to **Authentication → Providers** and make sure Email is enabled (it is by default).

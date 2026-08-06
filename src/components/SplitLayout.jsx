@@ -25,6 +25,7 @@ export default function SplitLayout({
   onCreateTask,
   onToggleStatus,
   onReorderTasks,
+  onToggleFocus,
   taskLinks = [],
 }) {
   const lineColor = useLineColor()
@@ -96,6 +97,7 @@ export default function SplitLayout({
             onCreateTask={onCreateTask}
             onToggleStatus={onToggleStatus}
             onReorderTasks={onReorderTasks}
+            onToggleFocus={onToggleFocus}
             taskLinks={taskLinks}
             embedded
           />

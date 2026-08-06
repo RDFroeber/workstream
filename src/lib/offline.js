@@ -113,6 +113,23 @@ export function outboxCount() {
   return getOutbox().length
 }
 
+/**
+ * The session is the problem, not the write.
+ *
+ * A JWT that expired while the user was offline makes every queued write come
+ * back 401 (or PGRST301, PostgREST's "JWT expired"). Classifying that as
+ * permanent dropped the entire outbox — a day of offline edits gone because a
+ * token aged out. These failures pause the queue instead; the writes are fine
+ * and will succeed as soon as the user is signed in again.
+ */
+export function isAuthFailure(err) {
+  const status = err?.status
+  if (status === 401 || status === 403) return true
+  const code = err?.code
+  // PGRST301: JWT expired/invalid. PGRST302: anonymous requests disallowed.
+  return code === 'PGRST301' || code === 'PGRST302'
+}
+
 /** A write that will never succeed, however many times it's retried.
  *
  * Supabase doesn't raise HTTP-shaped errors: a PostgrestError carries `code` as
@@ -121,8 +138,12 @@ export function outboxCount() {
  * therefore classified every real rejection as transient, so one constraint
  * violation would wedge the queue forever and every later edit would pile up
  * behind it.
+ *
+ * Auth failures are carved out: the write itself is sound, only the session
+ * has lapsed, so dropping it would destroy data that re-authenticating saves.
  */
 export function isPermanentFailure(err) {
+  if (isAuthFailure(err)) return false
   const status = err?.status
   if (typeof status === 'number') {
     // 408 and 429 are worth retrying; the rest of the 4xx range is not.
@@ -159,6 +180,7 @@ export async function flushOutbox(handlers) {
   // Temporary id -> real id, filled in as creates come back from the server.
   const mapping = {}
   let sent = 0
+  let authNeeded = false
 
   for (const item of queue) {
     const handler = handlers[item.op]
@@ -172,12 +194,30 @@ export async function flushOutbox(handlers) {
     try {
       const args = remapArgs(item.args, mapping)
       const result = await handler(...args)
-      // A create that was referenced later: remember what the server called it.
-      if (item.localId && result?.id) mapping[item.localId] = result.id
       dequeue(item.id)
+      // A create that was referenced later: remember what the server called
+      // it — and write the swap into the stored queue, not just this loop's
+      // memory. An interrupted flush used to lose the mapping: the create was
+      // already dequeued, so the next flush sent the temporary id verbatim,
+      // Postgres rejected it as an invalid uuid, and the queued edit was
+      // dropped as "permanent".
+      if (item.localId && result?.id) {
+        mapping[item.localId] = result.id
+        const swap = { [item.localId]: result.id }
+        write(
+          OUTBOX_KEY,
+          getOutbox().map((o) => ({ ...o, args: remapArgs(o.args, swap) }))
+        )
+      }
       sent++
     } catch (err) {
       if (!isOnline()) break // connection dropped again; keep the rest queued
+      if (isAuthFailure(err)) {
+        // The session lapsed, not the write. Keep everything queued and tell
+        // the caller to get the user signed in again.
+        authNeeded = true
+        break
+      }
       if (isPermanentFailure(err)) {
         dequeue(item.id)
         failed.push({ item, reason: err?.message || 'rejected' })
@@ -199,7 +239,26 @@ export async function flushOutbox(handlers) {
     }
   }
 
-  return { sent, failed, remaining: outboxCount() }
+  return { sent, failed, remaining: outboxCount(), authNeeded }
+}
+
+/**
+ * The queued edits, replayed once over a base data set.
+ *
+ * The snapshot always holds the last state the *server* confirmed; anything
+ * still in the outbox is layered on top for display. Keeping those two roles
+ * separate is what makes the replay idempotent — the old scheme saved the
+ * post-edit state as the snapshot *and* replayed the queue over it, so every
+ * queued create rendered twice after an offline reload.
+ *
+ * Each op replays with its recorded localId, so a task created offline gets
+ * the same temporary id on every reload and the queued edits that reference
+ * it still land on it.
+ */
+export function overlayOutbox(base) {
+  let d = base
+  for (const item of getOutbox()) d = applyLocally(d, item.op, item.args, item.localId)
+  return d
 }
 
 // --- optimistic local application -----------------------------------------
@@ -280,18 +339,34 @@ export function applyLocally(data, op, args, localId = null) {
       const [id, status] = args
       d.tasks = d.tasks.map((t) =>
         t.id === id
-          ? { ...t, status, completed_at: status === 'done' ? new Date().toISOString() : null }
+          ? {
+              ...t,
+              status,
+              completed_at: status === 'done' ? new Date().toISOString() : null,
+              // Finishing a task retires it from the day's picks.
+              ...(status === 'done' ? { focus_date: null } : {}),
+            }
           : t
       )
       break
     }
     case 'deleteTask': {
       const [id] = args
-      d.tasks = d.tasks.filter((t) => t.id !== id && t.parent_id !== id)
+      // Deleting a sequence takes its steps with it — and, mirroring the
+      // database's ON DELETE CASCADE, any dependency or link pointing at
+      // those steps, not just at the sequence itself. Same class of bug as
+      // the deleteWorkstream case above, fixed the same way.
+      const removed = new Set([
+        id,
+        ...d.tasks.filter((t) => t.parent_id === id).map((t) => t.id),
+      ])
+      d.tasks = d.tasks.filter((t) => !removed.has(t.id))
       d.dependencies = d.dependencies.filter(
-        (x) => x.task_id !== id && x.depends_on_task_id !== id
+        (x) => !removed.has(x.task_id) && !removed.has(x.depends_on_task_id)
       )
-      d.taskLinks = d.taskLinks.filter((x) => x.task_a_id !== id && x.task_b_id !== id)
+      d.taskLinks = d.taskLinks.filter(
+        (x) => !removed.has(x.task_a_id) && !removed.has(x.task_b_id)
+      )
       break
     }
     case 'reorderTasks': {
@@ -319,6 +394,8 @@ export function applyLocally(data, op, args, localId = null) {
               completed_at: null,
               last_completed_at: new Date().toISOString(),
               recurrence_count: (t.recurrence_count || 0) + 1,
+              // Today's occurrence is done; the next one starts unpicked.
+              focus_date: null,
             }
           : t
       )
@@ -328,7 +405,7 @@ export function applyLocally(data, op, args, localId = null) {
       const [sequence, stepIds, nextDue] = args
       const ids = new Set(stepIds)
       d.tasks = d.tasks.map((t) => {
-        if (ids.has(t.id)) return { ...t, status: 'todo', completed_at: null }
+        if (ids.has(t.id)) return { ...t, status: 'todo', completed_at: null, focus_date: null }
         if (t.id === sequence.id) {
           return {
             ...t,
@@ -337,6 +414,7 @@ export function applyLocally(data, op, args, localId = null) {
             completed_at: null,
             last_completed_at: new Date().toISOString(),
             recurrence_count: (t.recurrence_count || 0) + 1,
+            focus_date: null,
           }
         }
         return t

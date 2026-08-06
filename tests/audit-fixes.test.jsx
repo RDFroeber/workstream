@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   isPermanentFailure,
+  isAuthFailure,
   MAX_ATTEMPTS,
   enqueue,
   flushOutbox,
@@ -35,7 +36,6 @@ describe('isPermanentFailure', () => {
 
   it('recognises PostgREST request errors', () => {
     expect(isPermanentFailure({ code: 'PGRST116', message: 'no rows returned' })).toBe(true)
-    expect(isPermanentFailure({ code: 'PGRST301', message: 'JWT expired' })).toBe(true)
   })
 
   it('recognises data and access errors', () => {
@@ -45,7 +45,6 @@ describe('isPermanentFailure', () => {
 
   it('still handles an HTTP-shaped 4xx', () => {
     expect(isPermanentFailure({ status: 400 })).toBe(true)
-    expect(isPermanentFailure({ status: 403 })).toBe(true)
   })
 
   it('treats server trouble and rate limiting as worth retrying', () => {

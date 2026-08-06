@@ -1,5 +1,17 @@
-export function todayISO() {
-  return new Date().toISOString().slice(0, 10)
+/**
+ * Today as a local-time YYYY-MM-DD string.
+ *
+ * Not `toISOString().slice(0, 10)` — that is the UTC date, and for anyone west
+ * of UTC it rolls over hours before midnight. The app's dates are all local
+ * (see the note in recurrence.js), and the UTC version made the Today view,
+ * the reminders and recurrence all flip to "tomorrow" at 8pm Eastern while the
+ * due badges — computed locally — still said "Today".
+ */
+export function todayISO(d = new Date()) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export function formatDue(dateStr) {

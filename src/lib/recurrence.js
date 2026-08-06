@@ -114,7 +114,26 @@ export function computeNextDue(task, completedOnISO) {
 
   let next = advanceOnce(cursor, task)
 
-  // Don't hand back a date that's already gone.
+  // Don't hand back a date that's already gone. For fixed-length intervals
+  // (daily, and weekly without specific days) the catch-up is arithmetic —
+  // the old loop capped out at 400 steps, so a daily task neglected for more
+  // than ~13 months came back with a date still in the past.
+  const interval = Math.max(1, task.recurrence_interval || 1)
+  const days = Array.isArray(task.recurrence_days) ? task.recurrence_days : []
+  const fixedStep =
+    task.recurrence_unit === 'day'
+      ? interval
+      : task.recurrence_unit === 'week' && days.length === 0
+        ? interval * 7
+        : null
+  if (fixedStep && next <= completedOn) {
+    // Math.round absorbs the ±1h a DST boundary adds to a local-date diff.
+    const behind = Math.round((completedOn - next) / 86400000)
+    next = addDays(next, (Math.floor(behind / fixedStep) + 1) * fixedStep)
+  }
+
+  // Variable-length intervals (months, years, weekly-on-days) still iterate;
+  // even monthly needs 400 steps to cover 33 years, so the guard is ample.
   let guard = 0
   while (next <= completedOn && guard < 400) {
     next = advanceOnce(next, task)

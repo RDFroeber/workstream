@@ -107,15 +107,15 @@ export default function App() {
   }, [])
 
   const loadAll = useCallback(async () => {
-    // Offline, or the network died mid-flight: fall back to the last snapshot
-    // rather than blanking the screen. Anything still in the outbox is replayed
-    // over the top so your own edits stay visible.
+    // The snapshot always holds the last state the server confirmed; anything
+    // still in the outbox is overlaid on top for display. Saving the
+    // optimistic state as the snapshot AND replaying the queue over it —
+    // the old scheme — applied every queued edit twice, so a task created
+    // offline rendered in duplicate after a reload.
     if (!offline.isOnline()) {
       const snap = offline.loadSnapshot()
       if (snap) {
-        let d = snap.data
-        for (const item of offline.getOutbox()) d = offline.applyLocally(d, item.op, item.args)
-        applyData(d)
+        applyData(offline.overlayOutbox(snap.data))
         setSnapshotAt(snap.savedAt)
       }
       return
@@ -129,32 +129,45 @@ export default function App() {
         api.listInbox(),
       ])
       const d = { workstreams: ws, tasks: tk, dependencies: dep, taskLinks: links, inbox: ib }
-      applyData(d)
       offline.saveSnapshot(d)
       setSnapshotAt(Date.now())
+      // Edits queued but not yet flushed stay visible over the server data,
+      // rather than vanishing until the flush completes.
+      applyData(offline.overlayOutbox(d))
     } catch (err) {
       const snap = offline.loadSnapshot()
       if (snap) {
-        applyData(snap.data)
+        applyData(offline.overlayOutbox(snap.data))
         setSnapshotAt(snap.savedAt)
       }
       if (offline.isOnline()) setSyncError('Could not reach the server. Showing cached data.')
     }
   }, [applyData])
 
+  // Realtime events arrive in bursts — one edit can touch several tables, and
+  // the app's own writes echo back through every channel. Reloading on each
+  // event meant up to five full reloads per edit; one debounced reload
+  // covers the whole burst.
+  const reloadTimer = useRef(null)
+  const scheduleReload = useCallback(() => {
+    clearTimeout(reloadTimer.current)
+    reloadTimer.current = setTimeout(loadAll, 250)
+  }, [loadAll])
+  useEffect(() => () => clearTimeout(reloadTimer.current), [])
+
   useEffect(() => {
     if (!session) return
     loadAll()
     const userId = session.user.id
     const unsubs = [
-      api.subscribeToTable('workstreams', userId, loadAll),
-      api.subscribeToTable('tasks', userId, loadAll),
-      api.subscribeToTable('dependencies', userId, loadAll),
-      api.subscribeToTable('task_links', userId, loadAll),
-      api.subscribeToTable('inbox_items', userId, loadAll),
+      api.subscribeToTable('workstreams', userId, scheduleReload),
+      api.subscribeToTable('tasks', userId, scheduleReload),
+      api.subscribeToTable('dependencies', userId, scheduleReload),
+      api.subscribeToTable('task_links', userId, scheduleReload),
+      api.subscribeToTable('inbox_items', userId, scheduleReload),
     ]
     return () => unsubs.forEach((u) => u())
-  }, [session, loadAll])
+  }, [session, loadAll, scheduleReload])
 
   // --- derived lookups -------------------------------------------------------
   const tasksById = useMemo(() => Object.fromEntries(tasks.map((t) => [t.id, t])), [tasks])
@@ -216,7 +229,9 @@ export default function App() {
       // would have had the second one read pre-first-mutation data and undo it.
       dataRef.current = next
       applyData(next)
-      offline.saveSnapshot(next)
+      // Deliberately NOT saved as the snapshot: the snapshot is server truth,
+      // and queued ops are overlaid on it at load time (see loadAll). Saving
+      // the optimistic state here double-applied every queued edit.
 
       if (!offline.isOnline()) {
         setPending(offline.enqueue(op, args, localId))
@@ -245,10 +260,14 @@ export default function App() {
     if (!offline.isOnline() || offline.outboxCount() === 0) return
     setSyncing(true)
     setSyncError(null)
-    const { failed, remaining } = await offline.flushOutbox(api)
+    const { failed, remaining, authNeeded } = await offline.flushOutbox(api)
     setPending(remaining)
     setSyncing(false)
-    if (failed.length) {
+    if (authNeeded) {
+      setSyncError(
+        `Your session has expired. Sign in again and your ${remaining} queued ${remaining === 1 ? 'change' : 'changes'} will sync.`
+      )
+    } else if (failed.length) {
       setSyncError(
         `${failed.length} queued ${failed.length === 1 ? 'change' : 'changes'} could not be saved and ${failed.length === 1 ? 'was' : 'were'} dropped.`
       )
@@ -382,6 +401,14 @@ export default function App() {
     await mutate('updateTask', id, patch)
   }
 
+  // Picking a task for today is just a dated flag — the due date is never
+  // touched, so priorities for the day don't rewrite the actual schedule.
+  async function handleToggleFocus(task) {
+    await mutate('updateTask', task.id, {
+      focus_date: task.focus_date ? null : todayISO(),
+    })
+  }
+
   async function handleDeleteTask(id) {
     setOpenTaskId(null)
     await mutate('deleteTask', id)
@@ -511,6 +538,16 @@ export default function App() {
             </button>
             <button
               onClick={() => {
+                // Signing out clears the local cache — including the outbox.
+                // With edits still queued that's data loss, so ask first.
+                if (
+                  offline.outboxCount() > 0 &&
+                  !window.confirm(
+                    'You have unsynced changes that will be discarded if you sign out now. Sign out anyway?'
+                  )
+                ) {
+                  return
+                }
                 offline.clearOfflineState()
                 api.signOut()
               }}
@@ -545,6 +582,7 @@ export default function App() {
             onCreateTask={handleCreateTask}
             onToggleStatus={handleSetStatus}
             onReorderTasks={handleReorderTasks}
+            onToggleFocus={handleToggleFocus}
             taskLinks={taskLinks}
           />
         ) : view === 'dashboard' ? (
@@ -607,6 +645,7 @@ export default function App() {
                   onCreateTask={handleCreateTask}
                   onToggleStatus={handleSetStatus}
                   onReorderTasks={handleReorderTasks}
+                  onToggleFocus={handleToggleFocus}
                   taskLinks={taskLinks}
                 />
               )}
@@ -621,6 +660,7 @@ export default function App() {
               setOpenTaskId(item.id)
             }}
             onToggleStatus={handleSetStatus}
+            onToggleFocus={handleToggleFocus}
           />
         ) : (
           <InboxView
@@ -698,6 +738,10 @@ export default function App() {
           onOpenLine={(id) => {
             setView('dashboard')
             setActiveWorkstreamId(id)
+          }}
+          onOpenInbox={() => {
+            setActiveWorkstreamId(null)
+            setView('inbox')
           }}
           onClose={() => setShowSearch(false)}
         />

@@ -89,6 +89,21 @@ export async function getSession() {
   return data.session
 }
 
+/**
+ * The signed-in user's id, or a readable error.
+ *
+ * Without the check, a lapsed session surfaced as
+ * "Cannot read properties of null (reading 'id')" — technically true,
+ * usefully false.
+ */
+async function requireUserId() {
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data?.user?.id) {
+    throw new Error('You are signed out. Sign in again to save changes.')
+  }
+  return data.user.id
+}
+
 // ---------------------------------------------------------------------------
 // Workstreams
 // ---------------------------------------------------------------------------
@@ -103,10 +118,10 @@ export async function listWorkstreams() {
 }
 
 export async function createWorkstream({ name, color, sort_order = 0 }) {
-  const { data: userData } = await supabase.auth.getUser()
+  const user_id = await requireUserId()
   const { data, error } = await supabase
     .from('workstreams')
-    .insert({ name, color, sort_order, user_id: userData.user.id })
+    .insert({ name, color, sort_order, user_id })
     .select()
     .single()
   if (error) throw error
@@ -165,7 +180,7 @@ export async function createTask({
   recurrence_days = null,
   recurrence_anchor = 'schedule',
 }) {
-  const { data: userData } = await supabase.auth.getUser()
+  const user_id = await requireUserId()
   const { data, error } = await supabase
     .from('tasks')
     .insert({
@@ -181,7 +196,7 @@ export async function createTask({
       recurrence_days,
       recurrence_anchor,
       status: 'todo',
-      user_id: userData.user.id,
+      user_id,
     })
     .select()
     .single()
@@ -202,8 +217,13 @@ export async function updateTask(id, patch) {
 
 export async function setTaskStatus(id, status) {
   const patch = { status }
-  if (status === 'done') patch.completed_at = new Date().toISOString()
-  else patch.completed_at = null
+  if (status === 'done') {
+    patch.completed_at = new Date().toISOString()
+    // Finishing a task retires it from the day's picks (see focus_date).
+    patch.focus_date = null
+  } else {
+    patch.completed_at = null
+  }
   return updateTask(id, patch)
 }
 
@@ -212,23 +232,44 @@ export async function deleteTask(id) {
   if (error) throw error
 }
 
-export async function reorderTasks(updates) {
-  // updates: [{ id, sort_order }, ...]
+/**
+ * One round-trip for the whole reordering, via a SQL function
+ * (supabase/migration-006-reorder.sql) — n parallel single-row updates
+ * meant n requests and a half-reordered list if any one of them failed.
+ *
+ * Falls back to per-row updates when the function isn't installed, so a
+ * deployment that hasn't run the migration keeps working (just slower).
+ */
+async function reorderVia(fn, table, updates) {
+  try {
+    const { error } = await supabase.rpc(fn, { updates })
+    if (!error) return
+    if (!isMissingFunction(error)) throw error
+  } catch (err) {
+    // supabase.rpc itself threw (e.g. a much older client) — fall through
+    // to the per-row path unless it's a real server rejection.
+    if (err && !isMissingFunction(err) && (err.code || err.status)) throw err
+  }
   const results = await Promise.all(
-    updates.map((u) => supabase.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id))
+    updates.map((u) => supabase.from(table).update({ sort_order: u.sort_order }).eq('id', u.id))
   )
   const failed = results.find((r) => r.error)
   if (failed) throw failed.error
 }
 
+// PGRST202: PostgREST could not find the function. 42883: Postgres
+// "function does not exist" (schema cache already refreshed).
+function isMissingFunction(err) {
+  return err?.code === 'PGRST202' || err?.code === '42883'
+}
+
+export async function reorderTasks(updates) {
+  // updates: [{ id, sort_order }, ...]
+  return reorderVia('reorder_tasks', 'tasks', updates)
+}
+
 export async function reorderWorkstreams(updates) {
-  const results = await Promise.all(
-    updates.map((u) =>
-      supabase.from('workstreams').update({ sort_order: u.sort_order }).eq('id', u.id)
-    )
-  )
-  const failed = results.find((r) => r.error)
-  if (failed) throw failed.error
+  return reorderVia('reorder_workstreams', 'workstreams', updates)
 }
 
 /**
@@ -243,6 +284,8 @@ export async function completeRecurring(task, nextDueISO) {
     completed_at: null,
     last_completed_at: new Date().toISOString(),
     recurrence_count: (task.recurrence_count || 0) + 1,
+    // Today's occurrence is done; the next one starts unpicked.
+    focus_date: null,
   })
 }
 
@@ -254,7 +297,10 @@ export async function resetSequenceCycle(sequence, stepIds, nextDueISO) {
   if (stepIds.length > 0) {
     const results = await Promise.all(
       stepIds.map((id) =>
-        supabase.from('tasks').update({ status: 'todo', completed_at: null }).eq('id', id)
+        supabase
+          .from('tasks')
+          .update({ status: 'todo', completed_at: null, focus_date: null })
+          .eq('id', id)
       )
     )
     const failed = results.find((r) => r.error)
@@ -274,10 +320,10 @@ export async function listDependencies() {
 }
 
 export async function addDependency({ task_id, depends_on_task_id, note = '' }) {
-  const { data: userData } = await supabase.auth.getUser()
+  const user_id = await requireUserId()
   const { data, error } = await supabase
     .from('dependencies')
-    .insert({ task_id, depends_on_task_id, note, user_id: userData.user.id })
+    .insert({ task_id, depends_on_task_id, note, user_id })
     .select()
     .single()
   if (error) throw error
@@ -311,10 +357,10 @@ export async function listTaskLinks() {
 export async function addTaskLink(taskId, otherTaskId, note = '') {
   if (taskId === otherTaskId) throw new Error('A task cannot be linked to itself.')
   const [task_a_id, task_b_id] = normalizeLinkPair(taskId, otherTaskId)
-  const { data: userData } = await supabase.auth.getUser()
+  const user_id = await requireUserId()
   const { data, error } = await supabase
     .from('task_links')
-    .insert({ task_a_id, task_b_id, note, user_id: userData.user.id })
+    .insert({ task_a_id, task_b_id, note, user_id })
     .select()
     .single()
   if (error) throw error
@@ -388,10 +434,10 @@ export async function listInbox() {
 }
 
 export async function addInboxItem(text) {
-  const { data: userData } = await supabase.auth.getUser()
+  const user_id = await requireUserId()
   const { data, error } = await supabase
     .from('inbox_items')
-    .insert({ text, user_id: userData.user.id })
+    .insert({ text, user_id })
     .select()
     .single()
   if (error) throw error

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Search, CornerDownLeft, ListOrdered, Repeat, FileText, Waypoints } from 'lucide-react'
+import { Search, CornerDownLeft, ListOrdered, Repeat, FileText, Waypoints, Inbox } from 'lucide-react'
 import { searchAll } from '../lib/search'
 import { useLineColor } from '../lib/theme'
 import { lineFill } from '../lib/lineStyle'
@@ -13,7 +13,7 @@ import { DueBadge } from './ui'
  * arrow keys move a highlighted row, which is the pattern people expect from a
  * search box and avoids the tab-through-forty-results alternative.
  */
-export default function SearchDialog({ data, onOpenTask, onOpenLine, onClose }) {
+export default function SearchDialog({ data, onOpenTask, onOpenLine, onOpenInbox, onClose }) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const lineColor = useLineColor()
@@ -23,6 +23,15 @@ export default function SearchDialog({ data, onOpenTask, onOpenLine, onClose }) 
 
   // A new query invalidates the old highlight position.
   useEffect(() => setActive(0), [query])
+
+  // The page behind the overlay shouldn't scroll under the palette.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
 
   useEffect(() => {
     const el = listRef.current?.querySelector(`[data-index="${active}"]`)
@@ -35,6 +44,7 @@ export default function SearchDialog({ data, onOpenTask, onOpenLine, onClose }) 
   function choose(result) {
     if (!result) return
     if (result.type === 'line') onOpenLine(result.id)
+    else if (result.type === 'inbox') onOpenInbox?.()
     else onOpenTask(result.task)
     onClose()
   }
@@ -110,6 +120,8 @@ export default function SearchDialog({ data, onOpenTask, onOpenLine, onClose }) 
                 <span className="shrink-0">
                   {r.type === 'line' ? (
                     <Waypoints size={14} className="text-faint" />
+                  ) : r.type === 'inbox' ? (
+                    <Inbox size={14} className="text-faint" />
                   ) : r.type === 'sequence' ? (
                     <ListOrdered size={14} style={{ color: lineColor(r.workstream.color) }} />
                   ) : (

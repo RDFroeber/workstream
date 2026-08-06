@@ -9,6 +9,7 @@ import {
   Link2,
   Repeat,
   Link,
+  Sun,
 } from 'lucide-react'
 import { buildWorkstreamTree, linkedIdsFor } from '../lib/api'
 import { isRecurring, describeRecurrence } from '../lib/recurrence'
@@ -44,6 +45,7 @@ export default function WorkstreamView({
   onCreateTask,
   onToggleStatus,
   onReorderTasks,
+  onToggleFocus,
   embedded = false,
   taskLinks = [],
 }) {
@@ -117,6 +119,7 @@ export default function WorkstreamView({
                 workstreamsById={workstreamsById}
                 onOpen={() => onOpenTask(item)}
                 onToggleStatus={onToggleStatus}
+                onToggleFocus={onToggleFocus}
                 handleProps={handleProps}
                 isDragging={isDragging}
                 taskLinks={taskLinks}
@@ -181,6 +184,7 @@ export default function WorkstreamView({
                 workstreamsById={workstreamsById}
                 onOpen={() => onOpenTask(item)}
                 onToggleStatus={onToggleStatus}
+                onToggleFocus={onToggleFocus}
                 taskLinks={taskLinks}
               />
             ))}
@@ -205,6 +209,7 @@ function TaskRow({
   workstreamsById,
   onOpen,
   onToggleStatus,
+  onToggleFocus,
   handleProps,
   isDragging,
   taskLinks = [],
@@ -299,6 +304,24 @@ function TaskRow({
           </div>
         )}
       </div>
+
+      {/* Pick for today, without opening the task or touching its due date. */}
+      {onToggleFocus && !isSequence && !isDone && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleFocus(item)
+          }}
+          aria-pressed={Boolean(item.focus_date)}
+          aria-label={item.focus_date ? `Remove ${item.title} from today` : `Pick ${item.title} for today`}
+          title={item.focus_date ? 'Remove from today' : 'Pick for today'}
+          className={`mt-0.5 shrink-0 p-0.5 transition-colors ${
+            item.focus_date ? 'text-warn' : 'text-faint/60 hover:text-warn'
+          }`}
+        >
+          <Sun size={15} fill={item.focus_date ? 'currentColor' : 'none'} />
+        </button>
+      )}
     </div>
   )
 }

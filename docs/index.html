@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>Lines — workstream tracker</title>
+    <meta name="description" content="Track several parallel workstreams at once, with sequences, dependencies and a daily rollup." />
+
+    <!-- Favicons. SVG is used by modern browsers; .ico covers the rest. -->
+    <link rel="icon" href="./favicon.ico" sizes="48x48" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any" />
+
+    <!-- iOS home screen. Safari ignores the manifest for both of these:
+         the icon must be apple-touch-icon, and the name under the icon comes
+         from apple-mobile-web-app-title, not the manifest's short_name. -->
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Lines" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Android / Chrome -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <!-- One tag with no media query, so the in-app theme toggle can drive it.
+         Two media-scoped tags follow the OS instead, which meant choosing Dark
+         in the app left the browser and iOS status bar light. The boot script
+         below sets it before first paint. -->
+    <meta name="theme-color" content="#F7F8FA" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <script>
+      // Applied before first paint so a dark-mode user never sees a white flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem('lines-theme') || 'system'
+          var dark =
+            stored === 'dark' ||
+            (stored === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#14181D' : '#F7F8FA')
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

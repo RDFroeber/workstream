@@ -229,7 +229,10 @@ describe('notification delivery does not hang', () => {
   })
 
   it('tolerates Safari refusing the constructor outside a worker', () => {
-    const fallback = src.slice(src.indexOf('Promise.race'), src.indexOf('return true'))
+    // Anchor the end-marker search after the start — the file now has other
+    // `return true`s (the native supported() branch) before this block.
+    const start = src.indexOf('Promise.race')
+    const fallback = src.slice(start, src.indexOf('return true', start))
     expect(fallback).toContain('catch')
   })
 })

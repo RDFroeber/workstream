@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy — Lines</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #1b2430;
+        --muted: #6b7685;
+        --paper: #f7f8fa;
+        --panel: #ffffff;
+        --hairline: #e2e5ea;
+        --accent: #22404f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e6e9ed;
+          --muted: #9ba4b0;
+          --paper: #14181d;
+          --panel: #1c2128;
+          --hairline: #2a303a;
+          --accent: #7abed6;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 3rem 1.25rem 5rem;
+      }
+      h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+      h2 { font-size: 1.05rem; margin: 2rem 0 0.5rem; }
+      p, li { color: var(--ink); }
+      .muted { color: var(--muted); font-size: 0.9rem; }
+      a { color: var(--accent); }
+      section { border-top: 1px solid var(--hairline); padding-top: 0.25rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Lines — Privacy Policy</h1>
+      <p class="muted">Applies to the Lines app (web and iOS). Last updated: August 2026.</p>
+
+      <p>
+        Lines is a task tracker. The only reason it stores anything is so your lines and tasks
+        follow you between devices. There are no ads, no analytics, no tracking, and nothing is
+        sold or shared with anyone.
+      </p>
+
+      <section>
+        <h2>What is stored</h2>
+        <ul>
+          <li>
+            <strong>Your email address and a password</strong> — used solely to sign you in. The
+            password is stored only in hashed form. If you sign in with Apple, Apple provides an
+            email address (which may be a private relay address) instead of a password.
+          </li>
+          <li>
+            <strong>The content you create</strong> — workstreams, tasks, notes, dependencies,
+            links between tasks, and inbox captures. This is your data; the app just keeps it.
+          </li>
+        </ul>
+        <p>
+          That's the full list. Lines does not collect your location, contacts, photos, usage
+          analytics, advertising identifiers, or anything else.
+        </p>
+      </section>
+
+      <section>
+        <h2>Where it lives</h2>
+        <p>
+          Data is stored in a <a href="https://supabase.com">Supabase</a> project (Postgres hosted
+          on cloud infrastructure), protected by row-level security so an account can only ever
+          read and write its own rows. Traffic between the app and the server is encrypted with
+          HTTPS. The app also keeps a copy of your own data on your device so it works offline;
+          that copy never leaves the device and is removed when you sign out.
+        </p>
+      </section>
+
+      <section>
+        <h2>Notifications</h2>
+        <p>
+          Reminders are local notifications, planned on your device from your own tasks. No push
+          server is involved and nothing about your notifications is transmitted anywhere.
+        </p>
+      </section>
+
+      <section>
+        <h2>Your data is yours</h2>
+        <ul>
+          <li>
+            <strong>Export</strong> — Settings offers a full JSON export and a CSV export at any
+            time.
+          </li>
+          <li>
+            <strong>Delete</strong> — Settings → Account → Delete my account permanently removes
+            your account and everything in it from the server, immediately. There is no retention
+            period and no copies are kept.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Contact</h2>
+        <p>
+          Questions about this policy or your data:
+          <a href="https://github.com/RDFroeber/workstream/issues">open an issue on GitHub</a>.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

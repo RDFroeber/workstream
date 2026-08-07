@@ -1,0 +1,14 @@
+{
+  "appId": "dev.shebuilt.lines",
+  "appName": "Lines",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#1B2E38"
+    }
+  }
+}
